@@ -6,7 +6,7 @@
   "author": "ycf-anon",
   "license": "MIT",
   "repository": "https://github.com/ycf-anon/screen-toolkit",
-  "description": "10-in-1 screen utility: color picker, OCR + translate, QR scanner, Google Lens, annotate, measure, pin overlay, palette extractor, screen recorder, and webcam mirror.",
+  "description": "Screen Toolkit: a panel with tools like color picker, OCR, QR scanner, annotate, measure, pin, palette, recorder, and webcam mirror.",
   "tags": ["Panel", "Bar", "Utility", "System"],
   "entryPoints": {
     "main": "Main.qml",
