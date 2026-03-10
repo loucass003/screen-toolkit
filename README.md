@@ -1,86 +1,117 @@
 # Screen Toolkit
 
-Screen Toolkit is a Noctalia plugin that provides a set of screen utilities in one panel.  
-It includes Color Picker, Annotate, Measure, Pin, Palette, OCR with translation, QR Scanner, and Google Lens.
+![Preview](preview.png)
+
+Screen Toolkit is a Noctalia plugin that groups several screen utilities in one panel.
+
+Tools included:
+Color Picker, Annotate, Measure, Pin, Palette, OCR (with translation), QR Scanner, Google Lens, Screen Recorder, and Webcam Mirror.
 
 ## Features
 
 **Color Picker**  
-Click on any pixel to get HEX, RGB, HSV, and HSL values. Copy any format and view color history.  
+Pick any pixel and get HEX, RGB, HSV, and HSL values. Includes copy buttons and color history.  
 ![Color Picker](color.png)
 
 **Annotate**  
-Capture a region and draw with pencil, arrows, rectangles, text, or blur. Save or copy screenshots.  
+Select a region and draw on it (pencil, arrows, rectangles, text, blur). Save or copy the result.  
 ![Annotate](annotate.png)
 
 **Measure**  
-Draw lines on the screen to measure pixel distances. Annotated screenshots are saved automatically.  
+Draw lines to measure pixel distances on screen.  
 ![Measure](measure.png)
 
 **Pin**  
-Capture a region and keep it as a floating overlay on your screen.  
+Capture a region and keep it pinned as a floating overlay.  
 ![Pin](pin.png)
 
 **Palette**  
-Extract the 8 dominant colors from a region. Copy as hex codes or CSS variables.  
+Extract dominant colors from a selected region.  
 ![Palette](palette.png)
 
-**OCR with translation**  
-Select a region, extract text, and optionally translate it.  
+**OCR**  
+Select a region and extract text. Optional translation is supported.  
 ![OCR](ocr.png)
 
 **QR Scanner**  
-Select a region over any QR code or barcode. Copy the content or open URLs.  
+Scan QR codes or barcodes from a selected region.  
 ![QR Scanner](qr.png)
 
 **Google Lens**  
-Select a region, upload the image, and open it in Google Lens in your browser.  
+Upload a selected region to Google Lens.
 
+**Screen Recorder**  
+Record a selected region as MP4 or GIF (max ~15s for GIF). Optional system audio or microphone.  
+![Screen Recorder](Record.png)
+
+**Webcam Mirror**  
+Floating webcam preview window. Can be moved, resized, and flipped horizontally.  
+![Webcam Mirror](Mirror.png)
 
 ## Requirements
 
-You need the following packages installed:  
-grim, slurp, wl-clipboard, tesseract, imagemagick, zbar, curl, translate-shell  
-Optional OCR languages are detected automatically in the OCR tool settings.
+Required tools:
 
-## Install packages on your distro
+grim  
+slurp  
+wl-clipboard  
+tesseract  
+imagemagick  
+zbar  
+curl  
+translate-shell  
+wf-recorder  
+ffmpeg  
+gifski (only needed for GIF recording)
+
+Additional OCR languages will appear automatically if installed.
+
+## Install packages
 
 ### Arch Linux
-sudo pacman -S grim slurp wl-clipboard tesseract tesseract-data-eng imagemagick zbar curl translate-shell
+
+sudo pacman -S grim slurp wl-clipboard tesseract tesseract-data-eng imagemagick zbar curl translate-shell wf-recorder ffmpeg  
+yay -S gifski
 
 ### Debian / Ubuntu
-sudo apt install grim slurp wl-clipboard tesseract-ocr tesseract-ocr-eng imagemagick zbar-tools curl translate-shell
+
+sudo apt install grim slurp wl-clipboard tesseract-ocr tesseract-ocr-eng imagemagick zbar-tools curl translate-shell wf-recorder ffmpeg  
+cargo install gifski
 
 ### Fedora
-sudo dnf install grim slurp wl-clipboard tesseract tesseract-langpack-eng ImageMagick zbar curl translate-shell
+
+sudo dnf install grim slurp wl-clipboard tesseract tesseract-langpack-eng ImageMagick zbar curl translate-shell wf-recorder ffmpeg  
+cargo install gifski
 
 ### openSUSE
-sudo zypper install grim slurp wl-clipboard tesseract-ocr tesseract-ocr-traineddata-english ImageMagick zbar curl translate-shell
+
+sudo zypper install grim slurp wl-clipboard tesseract-ocr tesseract-ocr-traineddata-english ImageMagick zbar curl translate-shell wf-recorder ffmpeg  
+cargo install gifski
 
 ## Compatibility
 
 Tested on Hyprland and Niri.
 
-## IPC Commands
+## IPC
 
-All tools can be triggered using the IPC target `plugin:screen-toolkit`:
+Tools are exposed through:
+
+plugin:screen-toolkit
+
+Commands:
 
 toggle — open or close the panel  
-colorPicker — launch the pixel color picker  
-ocr — select a region and extract text  
-qr — select a region and decode QR or barcode  
-lens — select a region and upload to Google Lens  
-annotate — select a region and open annotation overlay  
-measure — open the measure overlay  
-pin — select a region and pin it as a floating overlay  
-palette — select a region and extract dominant colors
+colorPicker — launch color picker  
+ocr — run OCR on a region  
+qr — scan QR / barcode  
+lens — upload region to Google Lens  
+annotate — open annotation tool  
+measure — start measuring overlay  
+pin — pin a region to screen  
+palette — extract colors  
+record — start screen recording  
+mirror — toggle webcam mirror  
 
-## Example keybinds
+## License
 
-### Hyprland
-bind = $mod, C, exec, qs -c noctalia-shell ipc call plugin:screen-toolkit colorPicker  
-bind = $mod, T, exec, qs -c noctalia-shell ipc call plugin:screen-toolkit ocr
-
-### Niri
-Mod+C { spawn "qs" "-c" "noctalia-shell" "ipc" "call" "plugin:screen-toolkit" "colorPicker"; }  
-Mod+T { spawn "qs" "-c" "noctalia-shell" "ipc" "call" "plugin:screen-toolkit" "ocr"; }
+MIT
