@@ -54,6 +54,10 @@ Variants {
 
     property bool _resetToken: false
 
+    function _tr(key, interp) {
+        return annotateVariants.mainInstance?.pluginApi?.tr(key, interp ?? {}) ?? key
+    }
+
     function hide() { isVisible = false }
 
     model: Quickshell.screens
@@ -181,10 +185,10 @@ Variants {
             onExited: (code) => {
                 overlayWin.isSaving = false
                 if (code === 0) {
-                    ToastService.showNotice("Copied to clipboard", "", "copy")
+                    ToastService.showNotice(annotateVariants._tr("annotate.copied"), "", "copy")
                     annotateVariants.hide()
                 } else {
-                    ToastService.showError("Failed to copy")
+                    ToastService.showError(annotateVariants._tr("annotate.copyFailed"))
                 }
             }
         }
@@ -194,10 +198,10 @@ Variants {
             onExited: (code) => {
                 overlayWin.isSaving = false
                 if (code === 0) {
-                    ToastService.showNotice("Copied to clipboard", "", "copy")
+                    ToastService.showNotice(annotateVariants._tr("annotate.copied"), "", "copy")
                     annotateVariants.hide()
                 } else {
-                    ToastService.showError("Failed to save annotation")
+                    ToastService.showError(annotateVariants._tr("annotate.saveFailed"))
                 }
             }
         }
@@ -210,10 +214,10 @@ Variants {
                 overlayWin.isSaving = false
                 if (code === 0) {
                     var dest = saveFileProc.stdout.text.trim()
-                    ToastService.showNotice("Saved to " + (dest !== "" ? dest : "~/Pictures"), saveFileProc.savedPath, "device-floppy")
+                    ToastService.showNotice(annotateVariants._tr("annotate.savedTo", { dest: dest !== "" ? dest : "~/Pictures" }), saveFileProc.savedPath, "device-floppy")
                     annotateVariants.hide()
                 } else {
-                    ToastService.showError("Failed to save file")
+                    ToastService.showError(annotateVariants._tr("annotate.saveFileFailed"))
                 }
             }
         }
@@ -683,7 +687,7 @@ Variants {
                         Behavior on scale { NumberAnimation { duration: 80 } }
                         MouseArea { id: colorBtnH; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: overlayWin.showPopover = !overlayWin.showPopover
-                            onEntered: TooltipService.show(parent, "Color & size"); onExited: TooltipService.hide() }
+                            onEntered: TooltipService.show(parent, annotateVariants._tr("annotate.colorSize")); onExited: TooltipService.hide() }
                     }
 
                     ToolbarSeparator {}
@@ -738,7 +742,7 @@ Variants {
                         Behavior on scale { NumberAnimation { duration: 80 } }
                         MouseArea { id: colorBtnV; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: overlayWin.showPopover = !overlayWin.showPopover
-                            onEntered: TooltipService.show(parent, "Color & size"); onExited: TooltipService.hide() }
+                            onEntered: TooltipService.show(parent, annotateVariants._tr("annotate.colorSize")); onExited: TooltipService.hide() }
                     }
 
                     ToolbarSeparator {}

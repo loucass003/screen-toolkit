@@ -347,6 +347,7 @@ Item {
 
     Annotate {
         id: annotateOverlay
+        mainInstance: root
     }
 
     Measure {
@@ -356,14 +357,17 @@ Item {
 
     Pin {
         id: pinOverlay
+        pluginApi: root.pluginApi
     }
 
     Record {
         id: recordOverlay
+        pluginApi: root.pluginApi
     }
 
     Mirror {
         id: mirrorOverlay
+        pluginApi: root.pluginApi
     }
 
     readonly property bool mirrorVisible: mirrorOverlay.isVisible

@@ -9,6 +9,12 @@ import qs.Services.UI
 Item {
     id: root
 
+    property var pluginApi: null
+
+    function _tr(key, interp) {
+        return root.pluginApi?.tr(key, interp ?? {}) ?? key
+    }
+
     property string region: ""
     property string mp4Path: ""
     property string gifPath: ""
@@ -164,7 +170,7 @@ Item {
                 }
             } else {
                 root.dismiss()
-                ToastService.showError("Recording failed or cancelled")
+                ToastService.showError(root._tr("record.failed"))
             }
         }
     }
@@ -180,7 +186,7 @@ Item {
                 root.isDone = true
             } else {
                 root.dismiss()
-                ToastService.showError(root.format === "mp4" ? "Failed to save MP4" : "GIF conversion failed")
+                ToastService.showError(root.format === "mp4" ? root._tr("record.saveMp4Failed") : root._tr("record.saveGifFailed"))
             }
         }
     }
@@ -189,8 +195,8 @@ Item {
         id: saveProc
         property string savedPath: ""
         onExited: (code) => {
-            if (code === 0) ToastService.showNotice("Saved to ~/Videos", saveProc.savedPath, "device-floppy")
-            else ToastService.showError("Failed to save " + (root.format === "mp4" ? "MP4" : "GIF"))
+            if (code === 0) ToastService.showNotice(root._tr("record.saved"), saveProc.savedPath, "device-floppy")
+            else ToastService.showError(root.format === "mp4" ? root._tr("record.saveMp4Failed") : root._tr("record.saveGifFailed"))
             root.dismiss()
         }
     }
@@ -355,7 +361,7 @@ Item {
                                         }
                                     }
                                     NText {
-                                        text: root.format === "mp4" ? "Saving MP4..." : "Converting to GIF..."
+                                        text: root.format === "mp4" ? root._tr("record.savingMp4") : root._tr("record.convertingGif")
                                         color: "white"; pointSize: Style.fontSizeXS
                                         anchors.horizontalCenter: parent.horizontalCenter
                                     }
@@ -372,7 +378,7 @@ Item {
                                     anchors.centerIn: parent; spacing: 4
                                     NIcon { icon: "circle-check"; color: Color.mPrimary; scale: 0.75 }
                                     NText {
-                                        text: root.format === "mp4" ? "MP4 ready" : "GIF ready"
+                                        text: root.format === "mp4" ? root._tr("record.mp4Ready") : root._tr("record.gifReady")
                                         color: "white"; font.weight: Font.Bold; pointSize: Style.fontSizeXS
                                     }
                                 }
@@ -394,7 +400,7 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                                 NText {
-                                    text: "Stop"
+                                    text: root._tr("record.stop")
                                     color: stopBtn.containsMouse ? "white" : Color.mOnSurface
                                     font.weight: Font.Bold; pointSize: Style.fontSizeS
                                 }
@@ -419,7 +425,7 @@ Item {
                                     anchors.centerIn: parent; spacing: Style.marginS
                                     NIcon { icon: "device-floppy"; color: saveBtn.containsMouse ? Color.mOnPrimary : Color.mOnSurface }
                                     NText {
-                                        text: root.format === "mp4" ? "Save MP4" : "Save GIF"
+                                        text: root.format === "mp4" ? root._tr("record.saveMp4") : root._tr("record.saveGif")
                                         color: saveBtn.containsMouse ? Color.mOnPrimary : Color.mOnSurface
                                         font.weight: Font.Bold; pointSize: Style.fontSizeS
                                     }
@@ -448,7 +454,7 @@ Item {
                                 MouseArea {
                                     id: discardBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: root.dismiss()
-                                    onEntered: TooltipService.show(discardBtn, "Discard")
+                                    onEntered: TooltipService.show(discardBtn, root._tr("record.discard"))
                                     onExited:  TooltipService.hide()
                                 }
                             }

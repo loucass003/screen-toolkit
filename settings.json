@@ -4,13 +4,13 @@
     "eng"
   ],
   "transAvailable": true,
-  "resultHex": "#414B5B",
-  "resultRgb": "rgb(65, 75, 91)",
-  "resultHsv": "hsv(217, 29%, 36%)",
-  "resultHsl": "hsl(217, 17%, 31%)",
+  "resultHex": "#434D46",
+  "resultRgb": "rgb(67, 77, 70)",
+  "resultHsv": "hsv(138, 13%, 30%)",
+  "resultHsl": "hsl(138, 7%, 28%)",
   "colorCapturePath": "/tmp/screen-toolkit-colorpicker.png",
   "colorHistory": [
-    "#414B5B"
+    "#434D46"
   ],
   "paletteColors": [
     "#314451",

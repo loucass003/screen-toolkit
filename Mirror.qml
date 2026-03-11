@@ -9,6 +9,8 @@ import qs.Services.UI
 Item {
     id: root
 
+    property var pluginApi: null
+
     property bool isVisible: false
     function show()   { isVisible = true  }
     function hide()   { isVisible = false }
@@ -159,7 +161,7 @@ Item {
                                     root.xPos = Math.max(0, Math.min(win.screen.width  - root.currentWidth,  root.xPos))
                                     root.yPos = Math.max(0, Math.min(win.screen.height - root.currentHeight, root.yPos))
                                 }
-                                onEntered: TooltipService.show(parent, root.isSquare ? "Switch to wide (16:9)" : "Switch to square")
+                                onEntered: TooltipService.show(parent, root.isSquare ? (root.pluginApi?.tr("tooltips.switchToWide") ?? "Switch to wide (16:9)") : (root.pluginApi?.tr("tooltips.switchToSquare") ?? "Switch to square"))
                                 onExited:  TooltipService.hide()
                             }
                         }
@@ -173,7 +175,7 @@ Item {
                                 id: flipHover
                                 anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
                                 onClicked: root.isFlipped = !root.isFlipped
-                                onEntered: TooltipService.show(parent, root.isFlipped ? "Unflip camera" : "Flip camera")
+                                onEntered: TooltipService.show(parent, root.isFlipped ? (root.pluginApi?.tr("tooltips.unflipcamera") ?? "Unflip camera") : (root.pluginApi?.tr("tooltips.flipCamera") ?? "Flip camera"))
                                 onExited:  TooltipService.hide()
                             }
                         }
@@ -187,7 +189,7 @@ Item {
                                 id: closeHover; anchors.fill: parent
                                 hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: root.hide()
-                                onEntered: TooltipService.show(parent, "Close")
+                                onEntered: TooltipService.show(parent, root.pluginApi?.tr("pin.close") ?? "Close")
                                 onExited:  TooltipService.hide()
                             }
                         }

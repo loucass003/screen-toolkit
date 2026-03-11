@@ -8,6 +8,12 @@ import qs.Services.UI
 Variants {
     id: pinVariants
 
+    property var pluginApi: null
+
+    function _tr(key) {
+        return pinVariants.pluginApi?.tr(key) ?? key
+    }
+
     property var pins: []
     readonly property bool hasPins: pins.length > 0
 
@@ -110,7 +116,7 @@ Variants {
                             id: closeBtn; anchors.fill: parent; hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: pinVariants.removePin(pinDelegate.myIdx)
-                            onEntered: { pinDelegate._hovered = true; TooltipService.show(closeBtn, "Close") }
+                            onEntered: { pinDelegate._hovered = true; TooltipService.show(closeBtn, pinVariants._tr("pin.close")) }
                             onExited: { pinDelegate._hovered = false; TooltipService.hide() }
                         }
                     }
