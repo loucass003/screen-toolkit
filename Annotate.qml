@@ -300,7 +300,7 @@ Variants {
                 y: annotateVariants.zoomScale > 1.0
                    ? Math.max(annotateVariants.regionH - height, Math.min(0, (annotateVariants.regionH - height) / 2 + overlayWin.panY))
                    : 0
-                source: annotateVariants.isVisible ? "file://" + annotateVariants.imagePath : ""
+                source: annotateVariants.isVisible ? "file://" + annotateVariants.imagePath + "?v=" + annotateVariants._resetToken : ""
                 fillMode: Image.Stretch
                 cache: false; smooth: true
             }
@@ -871,14 +871,18 @@ Variants {
                     "cp " + annotateVariants.imagePath + " \"$DEST/" + filename + "\" && echo \"$DEST\""
                 ]})
             } else {
+                var dpr = overlayWin.screen?.devicePixelRatio ?? 1.0
+                var pw = Math.round(annotateVariants.regionW * dpr)
+                var ph = Math.round(annotateVariants.regionH * dpr)
                 drawCanvas.grabToImage(function(result) {
                     result.saveToFile("/tmp/screen-toolkit-overlay.png")
                     saveFileProc.exec({ command: [
                         "bash", "-c",
                         "DEST=$([ -d \"$HOME/Pictures/Screenshots\" ] && echo \"$HOME/Pictures/Screenshots\" || echo \"$HOME/Pictures\"); " +
-                        "magick /tmp/screen-toolkit-annotate.png /tmp/screen-toolkit-overlay.png " +
+                        "magick /tmp/screen-toolkit-overlay.png -resize " + pw + "x" + ph + "! /tmp/screen-toolkit-overlay-hires.png && " +
+                        "magick /tmp/screen-toolkit-annotate.png /tmp/screen-toolkit-overlay-hires.png " +
                         "-composite \"$DEST/" + filename + "\" && " +
-                        "rm -f /tmp/screen-toolkit-overlay.png && echo \"$DEST\""
+                        "rm -f /tmp/screen-toolkit-overlay.png /tmp/screen-toolkit-overlay-hires.png && echo \"$DEST\""
                     ]})
                 })
             }
@@ -890,14 +894,18 @@ Variants {
             if (annotateVariants.zoomScale > 1.0) {
                 copyProc.exec({ command: ["bash", "-c", "wl-copy < " + annotateVariants.imagePath] })
             } else {
+                var dpr = overlayWin.screen?.devicePixelRatio ?? 1.0
+                var pw = Math.round(annotateVariants.regionW * dpr)
+                var ph = Math.round(annotateVariants.regionH * dpr)
                 drawCanvas.grabToImage(function(result) {
                     result.saveToFile("/tmp/screen-toolkit-overlay.png")
                     saveProc.exec({ command: [
                         "bash", "-c",
-                        "magick /tmp/screen-toolkit-annotate.png /tmp/screen-toolkit-overlay.png " +
+                        "magick /tmp/screen-toolkit-overlay.png -resize " + pw + "x" + ph + "! /tmp/screen-toolkit-overlay-hires.png && " +
+                        "magick /tmp/screen-toolkit-annotate.png /tmp/screen-toolkit-overlay-hires.png " +
                         "-composite /tmp/screen-toolkit-annotated.png && " +
                         "wl-copy < /tmp/screen-toolkit-annotated.png && " +
-                        "rm -f /tmp/screen-toolkit-overlay.png"
+                        "rm -f /tmp/screen-toolkit-overlay.png /tmp/screen-toolkit-overlay-hires.png"
                     ]})
                 })
             }
