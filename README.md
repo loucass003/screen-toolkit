@@ -48,70 +48,124 @@ Record a selected region as MP4 or GIF (max ~15s for GIF). Optional system audio
 Floating webcam preview window. Can be moved, resized, and flipped horizontally.  
 ![Webcam Mirror](Mirror.png)
 
-## Requirements
+## 📦 Requirements
 
-Required tools:
+Ensure the following dependencies are installed on your system.
 
-grim  
-slurp  
-wl-clipboard  
-tesseract  
-imagemagick  
-zbar  
-curl  
-translate-shell  
-wf-recorder  
-ffmpeg  
-gifski (only needed for GIF recording)
+### Core Dependencies
+*   `grim` (Screenshot)
+*   `slurp` (Region selection)
+*   `wl-clipboard` (Clipboard)
+*   `tesseract` (OCR engine)
+*   `imagemagick` (Image processing)
+*   `zbar` (QR/Barcode scanning)
+*   `curl` (Network uploads)
+*   `ffmpeg` (Video processing)
+*   `jq` (JSON parsing)
+*   `wl-screenrec` (Preferred recorder) or `wf-recorder` (Fallback)
 
-Additional OCR languages will appear automatically if installed.
+### Optional / Feature-Specific
+*   `translate-shell` (Required for OCR translation)
+*   `gifski` (High-quality GIF encoding)
 
-## Install packages
+## 💻 Installation
 
 ### Arch Linux
-
-sudo pacman -S grim slurp wl-clipboard tesseract tesseract-data-eng imagemagick zbar curl translate-shell wf-recorder ffmpeg  
+```bash
+sudo pacman -S grim slurp wl-clipboard tesseract tesseract-data-eng imagemagick zbar curl translate-shell ffmpeg jq wl-screenrec
 yay -S gifski
+```
 
 ### Debian / Ubuntu
-
-sudo apt install grim slurp wl-clipboard tesseract-ocr tesseract-ocr-eng imagemagick zbar-tools curl translate-shell wf-recorder ffmpeg  
+```bash
+sudo apt install grim slurp wl-clipboard tesseract-ocr tesseract-ocr-eng imagemagick zbar-tools curl translate-shell ffmpeg jq
 cargo install gifski
+# Note: wl-screenrec may need to be built from source or substituted with wf-recorder
+```
 
 ### Fedora
-
-sudo dnf install grim slurp wl-clipboard tesseract tesseract-langpack-eng ImageMagick zbar curl translate-shell wf-recorder ffmpeg  
+```bash
+sudo dnf install grim slurp wl-clipboard tesseract tesseract-langpack-eng ImageMagick zbar curl translate-shell ffmpeg jq wl-screenrec
 cargo install gifski
+```
 
-### openSUSE
+### NixOS
+Add the following to your `configuration.nix` or `home.nix`:
+```nix
+environment.systemPackages = with pkgs; [
+  grim slurp wl-clipboard tesseract imagemagick zbar curl
+  translate-shell wl-screenrec ffmpeg gifski jq
+];
+# Enable extra languages if needed:
+# programs.tesseract.languages = [ "eng" "deu" "fra" ];
+```
 
-sudo zypper install grim slurp wl-clipboard tesseract-ocr tesseract-ocr-traineddata-english ImageMagick zbar curl translate-shell wf-recorder ffmpeg  
-cargo install gifski
 
 ## Compatibility
 
 Tested on Hyprland and Niri.
 
-## IPC
+## ⚙️ Settings & Customization
 
-Tools are exposed through:
+Configure paths and filename formats directly in the plugin settings panel:
 
-plugin:screen-toolkit
+| Setting | Description | Default |
+| :--- | :--- | :--- |
+| **Screenshot Path** | Custom directory for saved screenshots/annotations. Supports `~/` shorthand. | `~/Pictures/Screenshots` |
+| **Video Path** | Custom directory for saved recordings. Supports `~/` shorthand. | `~/Videos` |
+| **Filename Format** | Template for generated filenames.  | `{prefix}-{date}_{time}` |
 
-Commands:
+The tools automatically add the correct file extensions (like .png .gif or .mp4) 
 
-toggle — open or close the panel  
-colorPicker — launch color picker  
-ocr — run OCR on a region  
-qr — scan QR / barcode  
-lens — upload region to Google Lens  
-annotate — open annotation tool  
-measure — start measuring overlay  
-pin — pin a region to screen  
-palette — extract colors  
-record — start screen recording  
-mirror — toggle webcam mirror  
+---
+##  IPC Commands
 
-## License
+Control Screen Toolkit via scripts or keybindings using:
+`qs -c noctalia-shell ipc call plugin:screen-toolkit <command>`
 
-MIT
+### General Controls
+| Command | Description |
+| :--- | :--- |
+| `toggle` | Open or close the main panel. |
+
+
+###  Annotation
+| Command | Description |
+| :--- | :--- |
+| `annotate` | Start region annotation. |
+| `annotateFullscreen` | Capture and annotate the entire screen. |
+| `annotateWindow` | Capture and annotate the active window (Hyprland only). |
+
+### Pin
+| Command | Description |
+| :--- | :--- |
+| `pin` | Pin a selected region to the screen. |
+| `pinImage` | Choose an existing image to pin. |
+
+### Recording
+| Command | Description |
+| :--- | :--- |
+| `record` | Start recording a region as GIF. |
+| `recordMp4` | Start recording a region as MP4. |
+| `recordStop` | Stop the current recording session. |
+
+###  Other
+| Command | Description |
+| :--- | :--- |
+| `mirror` | Toggle the webcam mirror overlay. |
+| `colorPicker` | Launch the color picker tool. |
+| `ocr` | Run Optical Character Recognition on a region. |
+| `qr` | Scan for QR codes or barcodes in a region. |
+| `palette` | Extract a color palette from a region. |
+| `lens` | Upload a region to Google Lens. |
+| `measure` | Start the measurement overlay. |
+
+---
+
+## 📄 License
+
+MIT License
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome .
