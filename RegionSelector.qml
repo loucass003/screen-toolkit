@@ -31,7 +31,7 @@ Variants {
         id: win
         required property ShellScreen modelData
         screen: modelData
-        visible: selectorVariants.isVisible && modelData === selectorVariants.activeScreen
+        visible: selectorVariants.isVisible
         anchors { left: true; right: true; top: true; bottom: true }
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore

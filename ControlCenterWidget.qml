@@ -16,6 +16,8 @@ Item {
     readonly property real contentHeight: capsuleHeight
     implicitWidth: contentWidth
     implicitHeight: contentHeight
+    readonly property bool _isRecording: (pluginApi?.mainInstance?.recordState ?? "") !== ""
+
     Rectangle {
         id: visualCapsule
         x: Style.pixelAlignCenter(parent.width, width)
@@ -29,7 +31,12 @@ Item {
         NIcon {
             anchors.centerIn: parent
             icon: "crosshair"
-            color: Color.mPrimary
+            color: root._isRecording ? Color.mError || "#f44336" : Color.mPrimary
+            SequentialAnimation on opacity {
+                running: root._isRecording; loops: Animation.Infinite
+                NumberAnimation { to: 0.4; duration: 600 }
+                NumberAnimation { to: 1.0; duration: 600 }
+            }
         }
     }
     MouseArea {
@@ -40,7 +47,11 @@ Item {
         onEntered: TooltipService.show(root, "Screen Toolkit", BarService.getTooltipDirection())
         onExited: TooltipService.hide()
         onClicked: {
-            if (pluginApi) pluginApi.togglePanel(root.screen, root)
+            if (!pluginApi) return
+            if ((pluginApi.mainInstance?.recordState ?? "") === "recording")
+                pluginApi.mainInstance?.runRecordStop()
+            else
+                pluginApi.togglePanel(root.screen, root)
         }
     }
 }

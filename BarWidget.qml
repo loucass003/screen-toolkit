@@ -17,6 +17,8 @@ Item {
     implicitWidth:  pill.width
     implicitHeight: pill.height
 
+    readonly property bool _isRecording: (pluginApi?.mainInstance?.recordState ?? "") !== ""
+
     BarPill {
         id: pill
         screen: root.screen
@@ -27,11 +29,27 @@ Item {
         tooltipText: pluginApi?.tr("widget.tooltip")
 
         onClicked: {
-            if (pluginApi) pluginApi.togglePanel(root.screen, pill)
+            if (!pluginApi) return
+            if ((pluginApi.mainInstance?.recordState ?? "") === "recording")
+                pluginApi.mainInstance?.runRecordStop()
+            else
+                pluginApi.togglePanel(root.screen, pill)
         }
 
         onRightClicked: {
             PanelService.showContextMenu(contextMenu, pill, root.screen)
+        }
+    }
+
+    Rectangle {
+        visible: root._isRecording
+        width: 8; height: 8; radius: 4
+        color: Color.mError || "#f44336"
+        anchors { top: pill.top; right: pill.right; topMargin: 4; rightMargin: 4 }
+        SequentialAnimation on opacity {
+            running: root._isRecording; loops: Animation.Infinite
+            NumberAnimation { to: 0.3; duration: 600 }
+            NumberAnimation { to: 1.0; duration: 600 }
         }
     }
 

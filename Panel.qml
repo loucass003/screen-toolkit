@@ -38,16 +38,38 @@ Item {
         interval: 200; repeat: true
         onTriggered: root._resolveMainInstance()
     }
-    readonly property bool   isRunning:    pluginApi?.pluginSettings?.stateIsRunning  ?? false
-    readonly property string activeTool:   pluginApi?.pluginSettings?.stateActiveTool ?? ""
-    readonly property bool   mirrorActive: pluginApi?.pluginSettings?.stateMirrorVisible ?? false
+    readonly property bool   isRunning:    mainInstance?.isRunning    ?? false
+    readonly property string activeTool:   mainInstance?.activeTool   ?? ""
+    readonly property bool   mirrorActive: mainInstance?.mirrorVisible ?? false
+    readonly property string recordState:  mainInstance?.recordState   ?? ""
+    readonly property bool   isRecording:  recordState === "recording"
+    readonly property bool   isConverting: recordState === "converting"
+    readonly property bool   isDone:       recordState === "done"
+    readonly property string recordFormat: mainInstance?.recordFormat  ?? "gif"
+    readonly property string recordPath:   mainInstance?.recordPath    ?? ""
     readonly property bool   hasResult:    activeTool !== "" && !isRunning
-    readonly property bool _isNiri:     (pluginApi?.pluginSettings?.detectedCompositor ?? "") === "niri"
-    readonly property bool _isHyprland: (pluginApi?.pluginSettings?.detectedCompositor ?? "") === "hyprland"
+    readonly property bool _isNiri:     mainInstance?.isNiri     ?? false
+    readonly property bool _isHyprland: mainInstance?.isHyprland ?? false
     onActiveToolChanged: {
         if (activeTool === "ocr" || activeTool === "qr"
                 || activeTool === "colorpicker" || activeTool === "palette")
             root.viewedTool = activeTool
+        if (activeTool === "record" && root.isRecording)
+            root.viewedTool = "record"
+    }
+    onRecordStateChanged: {
+        if (recordState !== "") viewedTool = "record"
+        else if (viewedTool === "record") viewedTool = ""
+    }
+    onVisibleChanged: {
+        if (!visible) {
+            if (isDone) mainInstance?.runRecordDiscard()
+            if (recordState === "" && !isRunning) {
+                root.viewedTool      = ""
+                root.focusedTool     = -1
+                mainInstance.activeTool = ""
+            }
+        }
     }
     Process { id: panelClipProc }
     Process {
@@ -57,10 +79,9 @@ Item {
         onExited: {
             isTranslating = false
             var result = panelTranslateProc.stdout.text.trim()
-            if (pluginApi) {
-                pluginApi.pluginSettings.translateResult = (result !== "")
-                    ? result : pluginApi.tr("messages.translate-failed")
-                pluginApi.saveSettings()
+            if (root.mainInstance) {
+                root.mainInstance.translateResult = (result !== "")
+                    ? result : (pluginApi?.tr("messages.translate-failed") ?? "Translation failed")
             }
         }
     }
@@ -71,14 +92,14 @@ Item {
     function runTranslate(text, targetLang) {
         if (!text || text === "" || panelTranslateProc.isTranslating) return
         panelTranslateProc.isTranslating = true
-        if (pluginApi) { pluginApi.pluginSettings.translateResult = ""; pluginApi.saveSettings() }
+        if (root.mainInstance) root.mainInstance.translateResult = ""
         panelTranslateProc.exec({ command: ["bash", "-c", "trans -brief -to " + targetLang + " " + _shellEscape(text)] })
     }
     function _shellEscape(str) {
         return "'" + str.replace(/'/g, "'\\''") + "'"
     }
-    readonly property var    installedLangs:    pluginApi?.pluginSettings?.installedLangs || ["eng"]
-    readonly property bool   transAvailable:    pluginApi?.pluginSettings?.transAvailable || false
+    readonly property var    installedLangs:    mainInstance?.installedLangs  ?? ["eng"]
+    readonly property bool   transAvailable:    mainInstance?.transAvailable  ?? false
     property string          selectedOcrLang:   "eng"
     property string          selectedTransLang: "en"
     onSelectedOcrLangChanged: {
@@ -112,50 +133,30 @@ Item {
         return out
     }
     readonly property string pickedHex: {
-        if (!pluginApi?.pluginSettings) return ""
-        var v = pluginApi.pluginSettings.resultHex
+        var v = mainInstance?.resultHex ?? ""
         return (typeof v === "string" && v.length === 7 && v.charAt(0) === "#") ? v : ""
     }
     readonly property string pickedRgb: {
-        if (!pluginApi?.pluginSettings) return ""
-        var v = pluginApi.pluginSettings.resultRgb
+        var v = mainInstance?.resultRgb ?? ""
         return (typeof v === "string" && v !== "") ? v : ""
     }
     readonly property string pickedHsv: {
-        if (!pluginApi?.pluginSettings) return ""
-        var v = pluginApi.pluginSettings.resultHsv
+        var v = mainInstance?.resultHsv ?? ""
         return (typeof v === "string" && v !== "") ? v : ""
     }
     readonly property string pickedHsl: {
-        if (!pluginApi?.pluginSettings) return ""
-        var v = pluginApi.pluginSettings.resultHsl
+        var v = mainInstance?.resultHsl ?? ""
         return (typeof v === "string" && v !== "") ? v : ""
     }
-    readonly property string colorCapturePath: {
-        if (!pluginApi?.pluginSettings) return ""
-        var v = pluginApi.pluginSettings.colorCapturePath
-        return (typeof v === "string" && v !== "") ? v : ""
-    }
-    readonly property int colorCacheBust: pluginApi?.pluginSettings?.colorCacheBust ?? 0
-    readonly property var colorHistory:   pluginApi?.pluginSettings?.colorHistory   || []
-    readonly property var paletteColors:  pluginApi?.pluginSettings?.paletteColors  || []
-    readonly property string ocrResult: {
-        if (!pluginApi?.pluginSettings) return ""
-        var v = pluginApi.pluginSettings.ocrResult
-        return (typeof v === "string") ? v : ""
-    }
-    readonly property string ocrCapturePath:  pluginApi?.pluginSettings?.ocrCapturePath || ""
-    readonly property string translateResult: {
-        if (!pluginApi?.pluginSettings) return ""
-        var v = pluginApi.pluginSettings.translateResult
-        return (typeof v === "string") ? v : ""
-    }
-    readonly property string qrResult: {
-        if (!pluginApi?.pluginSettings) return ""
-        var v = pluginApi.pluginSettings.qrResult
-        return (typeof v === "string") ? v : ""
-    }
-    readonly property string qrCapturePath: pluginApi?.pluginSettings?.qrCapturePath || ""
+    readonly property string colorCapturePath: mainInstance?.colorCapturePath ?? ""
+    readonly property int    colorCacheBust:   mainInstance?.colorCacheBust   ?? 0
+    readonly property var    colorHistory:     pluginApi?.pluginSettings?.colorHistory || []
+    readonly property var    paletteColors:    mainInstance?.paletteColors    ?? []
+    readonly property string ocrResult:        mainInstance?.ocrResult        ?? ""
+    readonly property string ocrCapturePath:   mainInstance?.ocrCapturePath   ?? ""
+    readonly property string translateResult:  mainInstance?.translateResult  ?? ""
+    readonly property string qrResult:         mainInstance?.qrResult         ?? ""
+    readonly property string qrCapturePath:    mainInstance?.qrCapturePath    ?? ""
     readonly property string ocrUrl: {
         var m = root.ocrResult.match(/https?:\/\/[^\s]+/)
         if (m) return m[0]
@@ -191,7 +192,7 @@ Item {
         var m = root.qrResult.match(/P:([^;]+)/)
         return m ? m[1] : ""
     }
-    property int    focusedTool: 0
+    property int    focusedTool: -1
     property string viewedTool:  ""
     readonly property var toolDefs: pluginApi ? [
         { icon: "color-picker",  label: pluginApi.tr("tools.colorpicker"), tool: "colorpicker", tooltip: pluginApi.tr("tooltips.colorpicker") },
@@ -210,11 +211,16 @@ Item {
     property bool   recordAudioInput:     false
     property bool   recordCursor:         false
     function triggerFocused() {
+        if (root.focusedTool < 0 || root.focusedTool >= root.toolDefs.length) return
         var t = root.toolDefs[root.focusedTool].tool
         Logger.i("ScreenToolkit", "triggerFocused: tool=" + t + " isRunning=" + root.isRunning)
         if (root.isRunning) { Logger.w("ScreenToolkit", "blocked: isRunning"); return }
         root.viewedTool = t
-        if (t === "ocr" || t === "record" || t === "pin" || t === "annotate") return
+        if (t === "record") {
+            if (root.isRecording) root.mainInstance?.runRecordStop()
+            return
+        }
+        if (t === "ocr" || t === "pin" || t === "annotate") return
         if      (t === "colorpicker") root.mainInstance?.runColorPicker()
         else if (t === "qr")          root.mainInstance?.runQr()
         else if (t === "lens")        root.mainInstance?.runLens()
@@ -254,10 +260,10 @@ Item {
                 focus:  true
                 Component.onCompleted: forceActiveFocus()
                 Keys.onPressed: event => {
-                    if (event.key === Qt.Key_Left)       { root.focusedTool = (root.focusedTool + 9) % 10; event.accepted = true }
-                    else if (event.key === Qt.Key_Right) { root.focusedTool = (root.focusedTool + 1) % 10; event.accepted = true }
-                    else if (event.key === Qt.Key_Up)    { root.focusedTool = root.focusedTool >= 5 ? root.focusedTool - 5 : root.focusedTool; event.accepted = true }
-                    else if (event.key === Qt.Key_Down)  { root.focusedTool = root.focusedTool < 5 ? root.focusedTool + 5 : root.focusedTool; event.accepted = true }
+                    if (event.key === Qt.Key_Left)       { root.focusedTool = root.focusedTool < 0 ? 0 : (root.focusedTool + 9) % 10; event.accepted = true }
+                    else if (event.key === Qt.Key_Right) { root.focusedTool = root.focusedTool < 0 ? 0 : (root.focusedTool + 1) % 10; event.accepted = true }
+                    else if (event.key === Qt.Key_Up)    { root.focusedTool = root.focusedTool >= 5 ? root.focusedTool - 5 : (root.focusedTool < 0 ? 0 : root.focusedTool); event.accepted = true }
+                    else if (event.key === Qt.Key_Down)  { root.focusedTool = root.focusedTool < 0 ? 0 : (root.focusedTool < 5 ? root.focusedTool + 5 : root.focusedTool); event.accepted = true }
                     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.triggerFocused(); event.accepted = true }
                 }
                 Column {
@@ -272,9 +278,10 @@ Item {
                             delegate: ToolBtn {
                                 readonly property int myIdx: index
                                 icon: modelData.icon; label: modelData.label; tooltip: modelData.tooltip
-                                active:  root.activeTool === modelData.tool
-                                focused: root.focusedTool === myIdx
-                                running: root.isRunning
+                                active:    root.activeTool === modelData.tool
+                                focused:   root.focusedTool === myIdx
+                                running:   root.isRunning
+                                recording: root.isRecording && modelData.tool === "record"
                                 width: toolsCol.btnSize; height: toolsCol.btnSize + 18
                                 onTriggered: { root.focusedTool = myIdx; root.viewedTool = modelData.tool; root.triggerFocused() }
                             }
@@ -287,9 +294,10 @@ Item {
                             delegate: ToolBtn {
                                 readonly property int myIdx: index + 5
                                 icon: modelData.icon; label: modelData.label; tooltip: modelData.tooltip
-                                active:  root.activeTool === modelData.tool
-                                focused: root.focusedTool === myIdx
-                                running: root.isRunning
+                                active:    root.activeTool === modelData.tool
+                                focused:   root.focusedTool === myIdx
+                                running:   root.isRunning
+                                recording: root.isRecording && modelData.tool === "record"
                                 width: toolsCol.btnSize; height: toolsCol.btnSize + 18
                                 onTriggered: { root.focusedTool = myIdx; root.viewedTool = modelData.tool; root.triggerFocused() }
                             }
@@ -507,9 +515,116 @@ Item {
                     }
                 }
             }
+            // stop button while recording
+            Rectangle {
+                visible: root.viewedTool === "record" && root.isRecording
+                width: parent.width; height: 38; radius: Style.radiusM
+                color: recPanelStopBtn.containsMouse ? Color.mError || "#f44336" : Color.mSurfaceVariant
+                Row {
+                    anchors.centerIn: parent; spacing: Style.marginS
+                    Rectangle {
+                        width: 10; height: 10; radius: 2
+                        color: recPanelStopBtn.containsMouse ? "white" : (Color.mError || "#f44336")
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    NText {
+                        text: pluginApi?.tr("record.stop")
+                        color: recPanelStopBtn.containsMouse ? "white" : Color.mOnSurface
+                        font.weight: Font.Bold; pointSize: Style.fontSizeS
+                    }
+                }
+                MouseArea {
+                    id: recPanelStopBtn; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.mainInstance?.runRecordStop()
+                }
+            }
+            // converting spinner
+            Rectangle {
+                visible: root.viewedTool === "record" && root.isConverting
+                width: parent.width; height: 38; radius: Style.radiusM
+                color: Color.mSurfaceVariant
+                Row {
+                    anchors.centerIn: parent; spacing: Style.marginS
+                    NIcon {
+                        icon: "loader"; color: Color.mOnSurface
+                        anchors.verticalCenter: parent.verticalCenter
+                        RotationAnimation on rotation {
+                            running: root.isConverting
+                            from: 0; to: 360; duration: 1000; loops: Animation.Infinite
+                        }
+                    }
+                    NText {
+                        text: root.recordFormat === "mp4"
+                            ? pluginApi?.tr("record.savingMp4")
+                            : pluginApi?.tr("record.convertingGif")
+                        color: Color.mOnSurface; pointSize: Style.fontSizeS
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+            // preview + save / discard when done
+            Column {
+                visible: root.viewedTool === "record" && root.isDone
+                width: parent.width; spacing: Style.marginS
+
+                Rectangle {
+                    width: parent.width; height: Math.round(parent.width * 9 / 16)
+                    radius: Style.radiusM; color: Color.mSurfaceVariant; clip: true
+                    AnimatedImage {
+                        anchors.fill: parent
+                        visible: root.recordFormat === "gif" && root.recordPath !== ""
+                        source:  root.recordFormat === "gif" && root.recordPath !== ""
+                            ? "file://" + root.recordPath : ""
+                        fillMode: Image.PreserveAspectFit; smooth: true; cache: false; playing: true
+                    }
+                    Image {
+                        anchors.fill: parent
+                        visible: root.recordFormat === "mp4"
+                        source:  root.recordFormat === "mp4"
+                            ? "file:///tmp/screen-toolkit-record-thumb.png" : ""
+                        fillMode: Image.PreserveAspectFit; smooth: true; cache: false
+                    }
+                }
+
+                Row {
+                    width: parent.width; spacing: Style.marginS
+                    Rectangle {
+                        height: 38; radius: Style.radiusM
+                        width: parent.width - 44 - Style.marginS
+                        color: recSaveBtn.containsMouse ? Color.mPrimary : Color.mSurfaceVariant
+                        Row {
+                            anchors.centerIn: parent; spacing: Style.marginS
+                            NIcon { icon: "device-floppy"; color: recSaveBtn.containsMouse ? Color.mOnPrimary : Color.mOnSurface; anchors.verticalCenter: parent.verticalCenter }
+                            NText {
+                                text: root.recordFormat === "mp4" ? pluginApi?.tr("record.saveMp4") : pluginApi?.tr("record.saveGif")
+                                color: recSaveBtn.containsMouse ? Color.mOnPrimary : Color.mOnSurface
+                                font.weight: Font.Bold; pointSize: Style.fontSizeS; anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                        MouseArea {
+                            id: recSaveBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: root.mainInstance?.runRecordSave()
+                        }
+                    }
+                    Rectangle {
+                        width: 38; height: 38; radius: Style.radiusM
+                        color: recDiscardBtn.containsMouse ? Color.mErrorContainer || "#ffcdd2" : Color.mSurface
+                        border.color: recDiscardBtn.containsMouse ? Color.mError || "#f44336" : (Style.capsuleBorderColor || "transparent")
+                        border.width: Style.capsuleBorderWidth || 1
+                        NIcon { anchors.centerIn: parent; icon: "trash"; color: recDiscardBtn.containsMouse ? Color.mError || "#f44336" : Color.mOnSurfaceVariant }
+                        MouseArea {
+                            id: recDiscardBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: root.mainInstance?.runRecordDiscard()
+                            onEntered: TooltipService.show(recDiscardBtn, pluginApi?.tr("record.discard"))
+                            onExited:  TooltipService.hide()
+                        }
+                    }
+                }
+            } // Column (preview + save/discard)
             Column {
                 width: parent.width; spacing: Style.marginS
-                visible: root.viewedTool === "record" && !root.isRunning
+                visible: root.viewedTool === "record" && !root.isRunning && !root.isRecording && !root.isConverting && !root.isDone
                 Flow {
                     width: parent.width; spacing: Style.marginS
                     NText { text: pluginApi?.tr("panel.format"); color: Color.mOnSurfaceVariant; pointSize: Style.fontSizeXS; height: 26; verticalAlignment: Text.AlignVCenter }
@@ -1136,12 +1251,19 @@ Item {
     } // panelContainer
     component ToolBtn: Item {
         id: btn
-        property string icon:    ""
-        property string label:   ""
-        property string tooltip: ""
-        property bool   active:  false
-        property bool   focused: false
-        property bool   running: false
+        property string icon:      ""
+        property string label:     ""
+        property string tooltip:   ""
+        property bool   active:    false
+        property bool   focused:   false
+        property bool   running:   false
+        property bool   recording: false
+
+        readonly property bool  _accented:    recording || active || focused
+        readonly property color _accentColor: recording ? Color.mError || "#f44336"
+                                            : active    ? Color.mPrimary
+                                            :             Color.mSecondary || Color.mPrimary
+
         signal triggered()
         Column {
             anchors.centerIn: parent; spacing: 3
@@ -1151,39 +1273,46 @@ Item {
                 radius: Style.radiusM
                 anchors.horizontalCenter: parent.horizontalCenter
                 color:        ba.containsMouse ? Color.mHover : Color.mSurface
-                border.color: btn.active  ? Color.mPrimary
-                            : btn.focused ? Color.mSecondary || Color.mPrimary
-                            :               Style.capsuleBorderColor || "transparent"
-                border.width: (btn.active || btn.focused) ? 2 : (Style.capsuleBorderWidth || 1)
+                border.color: btn._accented ? btn._accentColor : Style.capsuleBorderColor || "transparent"
+                border.width: btn._accented ? 2 : (Style.capsuleBorderWidth || 1)
+
+                // static tint for active / focused
                 Rectangle {
                     anchors.fill: parent; radius: parent.radius
-                    color:   Color.mPrimary
-                    opacity: btn.active ? 0.15 : btn.focused ? 0.08 : 0
+                    color:   btn._accentColor
+                    opacity: btn.recording ? 0 : btn.active ? 0.15 : btn.focused ? 0.08 : 0
                 }
+                // pulsing tint for recording only
+                Rectangle {
+                    anchors.fill: parent; radius: parent.radius
+                    color: Color.mError || "#f44336"; visible: btn.recording; opacity: 0
+                    SequentialAnimation on opacity {
+                        running: btn.recording; loops: Animation.Infinite
+                        NumberAnimation { to: 0.05; duration: 600 }
+                        NumberAnimation { to: 0.2;  duration: 600 }
+                    }
+                }
+
                 NIcon {
                     anchors.centerIn: parent; icon: btn.icon
-                    color: btn.active  ? Color.mPrimary
-                         : btn.focused ? Color.mSecondary || Color.mPrimary
-                         :               Color.mOnSurface
+                    color: btn._accented ? btn._accentColor : Color.mOnSurface
                 }
                 MouseArea {
                     id: ba; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    enabled: !btn.running
+                    enabled: !btn.running || btn.recording
                     onClicked:  btn.triggered()
                     onEntered:  TooltipService.show(btn, btn.tooltip !== "" ? btn.tooltip : btn.label)
                     onExited:   TooltipService.hide()
                 }
             }
             NText {
-                text:               btn.label
-                pointSize:          Style.fontSizeXS
-                color:              btn.active  ? Color.mPrimary
-                                  : btn.focused ? Color.mSecondary || Color.mPrimary
-                                  :               Color.mOnSurfaceVariant
+                text:                btn.label
+                pointSize:           Style.fontSizeXS
+                color:               btn._accented ? btn._accentColor : Color.mOnSurfaceVariant
                 anchors.horizontalCenter: parent.horizontalCenter
-                width:              btn.width
+                width:               btn.width
                 horizontalAlignment: Text.AlignHCenter
-                elide:              Text.ElideRight
+                elide:               Text.ElideRight
             }
         }
     }

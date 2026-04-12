@@ -17,16 +17,26 @@ Item {
     property bool   pendingRecordCursor:   false
     property string pendingTool:           ""
 
-    onIsRunningChanged:  _syncState()
-    onActiveToolChanged: _syncState()
-
-    function _syncState() {
-        if (!pluginApi) return
-        pluginApi.pluginSettings.stateIsRunning     = root.isRunning
-        pluginApi.pluginSettings.stateActiveTool    = root.activeTool
-        pluginApi.pluginSettings.stateMirrorVisible = mirrorOverlay?.isVisible ?? false
-        pluginApi.saveSettings()
-    }
+    // runtime state — exposed via mainInstance, never touches pluginSettings/disk
+    property var    installedLangs:   []
+    property bool   transAvailable:   false
+    property string detectedRecorder: ""
+    readonly property string detectedCompositor: isHyprland ? "hyprland" : isNiri ? "niri" : "other"
+    property string resultHex:        ""
+    property string resultRgb:        ""
+    property string resultHsv:        ""
+    property string resultHsl:        ""
+    property string colorCapturePath: ""
+    property int    colorCacheBust:   0
+    property string ocrResult:        ""
+    property string ocrCapturePath:   ""
+    property string qrResult:         ""
+    property string qrCapturePath:    ""
+    property string translateResult:  ""
+    property var    paletteColors:    []
+    readonly property string recordState:  recordOverlay?.recordState  ?? ""
+    readonly property string recordFormat: recordOverlay?.format       ?? "gif"
+    readonly property string recordPath:   recordOverlay?.gifPath      ?? ""
 
     readonly property string selectedOcrLang: pluginApi?.pluginSettings?.selectedOcrLang || "eng"
     readonly property bool   isNiri:          (Quickshell.env("NIRI_SOCKET")                  || "") !== ""
@@ -95,16 +105,7 @@ Item {
         }
     }
 
-    onPluginApiChanged: {
-        if (pluginApi) {
-            pluginApi.pluginSettings.stateIsRunning     = false
-            pluginApi.pluginSettings.stateActiveTool    = ""
-            pluginApi.pluginSettings.detectedCompositor =
-                root.isHyprland ? "hyprland" :
-                root.isNiri     ? "niri"     : "other"
-            pluginApi.saveSettings()
-        }
-    }
+    onPluginApiChanged: { }
 
     function _grimRegionCmd(outFile) {
         if (!root._regionScreen)
@@ -138,10 +139,8 @@ Item {
                 if (!root._detectedLangs.includes(lang))
                     root._detectedLangs.push(lang)
             }
-            if (pluginApi && root._detectedLangs.length > 0) {
-                pluginApi.pluginSettings.installedLangs = root._detectedLangs.slice()
-                pluginApi.saveSettings()
-            }
+            if (root._detectedLangs.length > 0)
+                root.installedLangs = root._detectedLangs.slice()
         }
     }
 
@@ -150,10 +149,7 @@ Item {
         stdout: StdioCollector {}
         onExited: {
             var path = detectTransProc.stdout.text.trim()
-            if (pluginApi) {
-                pluginApi.pluginSettings.transAvailable = path !== "" && path.startsWith("/")
-                pluginApi.saveSettings()
-            }
+            root.transAvailable = path !== "" && path.startsWith("/")
         }
     }
 
@@ -162,12 +158,9 @@ Item {
         stdout: StdioCollector {}
         onExited: {
             var path = detectRecorderProc.stdout.text.trim()
-            if (pluginApi) {
-                pluginApi.pluginSettings.detectedRecorder =
-                    path.endsWith("wl-screenrec") ? "wl-screenrec" :
-                    path.endsWith("wf-recorder")  ? "wf-recorder"  : ""
-                pluginApi.saveSettings()
-            }
+            root.detectedRecorder =
+                path.endsWith("wl-screenrec") ? "wl-screenrec" :
+                path.endsWith("wf-recorder")  ? "wf-recorder"  : ""
         }
     }
 
@@ -219,13 +212,13 @@ Item {
             var sl  = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
             var hsl = "hsl(" + h + ", " + Math.round(sl * 100) + "%, " + Math.round(l * 100) + "%)"
 
+            root.resultHex        = hex
+            root.resultRgb        = rgb
+            root.resultHsv        = hsv
+            root.resultHsl        = hsl
+            root.colorCapturePath = "/tmp/screen-toolkit-colorpicker.png"
+            root.colorCacheBust   = Date.now()
             if (pluginApi) {
-                pluginApi.pluginSettings.resultHex        = hex
-                pluginApi.pluginSettings.resultRgb        = rgb
-                pluginApi.pluginSettings.resultHsv        = hsv
-                pluginApi.pluginSettings.resultHsl        = hsl
-                pluginApi.pluginSettings.colorCapturePath = "/tmp/screen-toolkit-colorpicker.png"
-                pluginApi.pluginSettings.colorCacheBust   = Date.now()
                 var history = pluginApi.pluginSettings.colorHistory || []
                 history = [hex].concat(history.filter(c => c !== hex)).slice(0, 8)
                 pluginApi.pluginSettings.colorHistory = history
@@ -235,7 +228,6 @@ Item {
 
             root.activeTool = "colorpicker"
             if (pluginApi) {
-                pluginApi.pluginSettings.stateActiveTool = "colorpicker"
                 pluginApi.withCurrentScreen(screen => pluginApi.openPanel(screen))
             }
         }
@@ -248,15 +240,11 @@ Item {
             root.isRunning = false
             var text = ocrProc.stdout.text.trim()
             if (text !== "") {
-                if (pluginApi) {
-                    pluginApi.pluginSettings.ocrResult       = text
-                    pluginApi.pluginSettings.ocrCapturePath  = "/tmp/screen-toolkit-ocr.png"
-                    pluginApi.pluginSettings.translateResult = ""
-                    pluginApi.saveSettings()
-                }
+                root.ocrResult       = text
+                root.ocrCapturePath  = "/tmp/screen-toolkit-ocr.png"
+                root.translateResult = ""
                 root.activeTool = "ocr"
                 if (pluginApi) {
-                    pluginApi.pluginSettings.stateActiveTool = "ocr"
                     pluginApi.withCurrentScreen(screen => pluginApi.openPanel(screen))
                 }
             } else {
@@ -273,14 +261,10 @@ Item {
             root.isRunning = false
             var result = qrProc.stdout.text.trim()
             if (result !== "") {
-                if (pluginApi) {
-                    pluginApi.pluginSettings.qrResult      = result
-                    pluginApi.pluginSettings.qrCapturePath = "/tmp/screen-toolkit-qr.png"
-                    pluginApi.saveSettings()
-                }
+                root.qrResult      = result
+                root.qrCapturePath = "/tmp/screen-toolkit-qr.png"
                 root.activeTool = "qr"
                 if (pluginApi) {
-                    pluginApi.pluginSettings.stateActiveTool = "qr"
                     pluginApi.withCurrentScreen(screen => pluginApi.openPanel(screen))
                 }
             } else {
@@ -397,9 +381,7 @@ Item {
                     .filter(function(c, i, arr) { return arr.indexOf(c) === i })
                     .slice(0, 8)
                 if (colors.length > 0 && pluginApi) {
-                    pluginApi.pluginSettings.paletteColors   = colors
-                    pluginApi.pluginSettings.stateActiveTool = "palette"
-                    pluginApi.saveSettings()
+                    root.paletteColors = colors
                     root.activeTool = "palette"
                     pluginApi.withCurrentScreen(screen => pluginApi.openPanel(screen))
                 } else {
@@ -420,11 +402,8 @@ Item {
         onExited: {
             translateProc.isTranslating = false
             var result = translateProc.stdout.text.trim()
-            if (pluginApi) {
-                pluginApi.pluginSettings.translateResult = result !== ""
-                    ? result : pluginApi.tr("messages.translate-failed")
-                pluginApi.saveSettings()
-            }
+            root.translateResult = result !== ""
+                ? result : (pluginApi?.tr("messages.translate-failed") ?? "Translation failed")
         }
     }
 
@@ -450,8 +429,27 @@ Item {
     Record   { id: recordOverlay;   pluginApi: root.pluginApi }
     Mirror   { id: mirrorOverlay;   pluginApi: root.pluginApi }
 
+    Connections {
+        target: recordOverlay
+
+        function onRecordStateChanged() {
+            if (!pluginApi) return
+            var s = recordOverlay.recordState
+            var skipConfirm = pluginApi.pluginSettings?.recordSkipConfirmation ?? false
+            var toClipboard = pluginApi.pluginSettings?.recordCopyToClipboard  ?? false
+            if (s === "converting" && !skipConfirm && !toClipboard) {
+                var screen = recordOverlay._primaryScreen
+                if (screen) pluginApi.openPanel(screen)
+                else pluginApi.withCurrentScreen(sc => pluginApi.openPanel(sc))
+            }
+        }
+
+        function onDismissed() {
+            if (root.activeTool === "record") root.activeTool = ""
+        }
+    }
+
     readonly property bool mirrorVisible: mirrorOverlay.isVisible
-    onMirrorVisibleChanged: _syncState()
 
 Timer {
         id: launchColorPicker
@@ -687,23 +685,20 @@ Timer {
     function runTranslate(text, targetLang) {
         if (!text || text === "" || translateProc.isTranslating) return
         translateProc.isTranslating = true
-        if (pluginApi) { pluginApi.pluginSettings.translateResult = ""; pluginApi.saveSettings() }
+        root.translateResult = ""
         translateProc.exec({ command: ["bash", "-c", "trans -brief -to " + targetLang + " " + shellEscape(text)] })
     }
 
     function runColorPicker() {
         if (root.isRunning) return
-        root.isRunning  = true
-        root.activeTool = ""
-        if (pluginApi) {
-            pluginApi.pluginSettings.resultHex        = ""
-            pluginApi.pluginSettings.resultRgb        = ""
-            pluginApi.pluginSettings.resultHsv        = ""
-            pluginApi.pluginSettings.resultHsl        = ""
-            pluginApi.pluginSettings.colorCapturePath = ""
-            pluginApi.pluginSettings.colorCacheBust   = 0
-            pluginApi.saveSettings()
-        }
+        root.isRunning        = true
+        root.activeTool       = ""
+        root.resultHex        = ""
+        root.resultRgb        = ""
+        root.resultHsv        = ""
+        root.resultHsl        = ""
+        root.colorCapturePath = ""
+        root.colorCacheBust   = 0
         closeThenLaunch(launchColorPicker)
     }
 
@@ -758,7 +753,7 @@ Timer {
 
     function runPalette() {
         if (root.isRunning) return
-        if (pluginApi) { pluginApi.pluginSettings.paletteColors = []; pluginApi.saveSettings() }
+        root.paletteColors = []
         _runSlurpTool("palette")
     }
 
@@ -777,6 +772,21 @@ Timer {
         root.activeTool = "measure"
         if (pluginApi) pluginApi.withCurrentScreen(screen => pluginApi.closePanel(screen))
         measureOverlay.show()
+    }
+
+    function runRecordStop() {
+        recordOverlay.stopRecording()
+    }
+
+    function runRecordSave() {
+        recordOverlay._saveToFile()
+    }
+
+    function runRecordDiscard() {
+        var screen = recordOverlay._primaryScreen
+        recordOverlay.dismiss()
+        if (screen) pluginApi.closePanel(screen)
+        else pluginApi.withCurrentScreen(sc => pluginApi.closePanel(sc))
     }
 
     function runRecord(format, audioOut, audioIn, cursor) {

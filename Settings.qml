@@ -8,9 +8,11 @@ ColumnLayout {
     property var pluginApi: null
     spacing: Style.marginL
 
-    property string screenshotPath: ""
-    property string videoPath:      ""
-    property string filenameFormat: ""
+    property string screenshotPath:          ""
+    property string videoPath:               ""
+    property string filenameFormat:          ""
+    property bool   recordSkipConfirmation:  false
+    property bool   recordCopyToClipboard:   false
     property bool _loaded: false
     property string _previewNow: ""
 
@@ -25,17 +27,21 @@ ColumnLayout {
     function _load() {
         if (!pluginApi?.pluginSettings) return
         _loaded = false
-        screenshotPath = pluginApi.pluginSettings.screenshotPath || ""
-        videoPath      = pluginApi.pluginSettings.videoPath      || ""
-        filenameFormat = pluginApi.pluginSettings.filenameFormat || ""
+        screenshotPath         = pluginApi.pluginSettings.screenshotPath         || ""
+        videoPath              = pluginApi.pluginSettings.videoPath              || ""
+        filenameFormat         = pluginApi.pluginSettings.filenameFormat         || ""
+        recordSkipConfirmation = pluginApi.pluginSettings.recordSkipConfirmation ?? false
+        recordCopyToClipboard  = pluginApi.pluginSettings.recordCopyToClipboard  ?? false
         _loaded = true
     }
 
     function saveSettings() {
         if (!pluginApi || !_loaded) return
-        pluginApi.pluginSettings.screenshotPath = root.screenshotPath
-        pluginApi.pluginSettings.videoPath      = root.videoPath
-        pluginApi.pluginSettings.filenameFormat = root.filenameFormat
+        pluginApi.pluginSettings.screenshotPath         = root.screenshotPath
+        pluginApi.pluginSettings.videoPath              = root.videoPath
+        pluginApi.pluginSettings.filenameFormat         = root.filenameFormat
+        pluginApi.pluginSettings.recordSkipConfirmation = root.recordSkipConfirmation
+        pluginApi.pluginSettings.recordCopyToClipboard  = root.recordCopyToClipboard
         pluginApi.saveSettings()
     }
 
@@ -207,6 +213,59 @@ ColumnLayout {
                 }
             }
         }
+    }
+
+    NDivider { Layout.fillWidth: true; Layout.topMargin: Style.marginM; Layout.bottomMargin: Style.marginM }
+
+    NLabel { label: pluginApi?.tr("settings.recordingSection") }
+
+    component SettingToggle: RowLayout {
+        id: _tog
+        property string labelText: ""
+        property string descText:  ""
+        property bool   checked:   false
+        signal toggled(bool value)
+        Layout.fillWidth: true
+        spacing: Style.marginM
+        ColumnLayout {
+            Layout.fillWidth: true; spacing: 2
+            NLabel { label: _tog.labelText }
+            NText {
+                text: _tog.descText; pointSize: Style.fontSizeXS
+                color: Color.mOnSurfaceVariant; wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+        }
+        Rectangle {
+            width: 40; height: 22; radius: 11
+            color: _tog.checked ? Color.mPrimary : Color.mSurfaceVariant
+            Behavior on color { ColorAnimation { duration: 120 } }
+            Rectangle {
+                id: _thumb
+                width: 18; height: 18; radius: 9; color: "white"
+                anchors.verticalCenter: parent.verticalCenter
+                x: _tog.checked ? parent.width - width - 2 : 2
+                Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            }
+            MouseArea {
+                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                onClicked: _tog.toggled(!_tog.checked)
+            }
+        }
+    }
+
+    SettingToggle {
+        labelText: pluginApi?.tr("settings.recordSkipConfirmation")
+        descText:  pluginApi?.tr("settings.recordSkipConfirmationDesc")
+        checked:   root.recordSkipConfirmation
+        onToggled: (v) => { root.recordSkipConfirmation = v; saveSettings() }
+    }
+
+    SettingToggle {
+        labelText: pluginApi?.tr("settings.recordCopyToClipboard")
+        descText:  pluginApi?.tr("settings.recordCopyToClipboardDesc")
+        checked:   root.recordCopyToClipboard
+        onToggled: (v) => { root.recordCopyToClipboard = v; saveSettings() }
     }
 }
 
