@@ -46,7 +46,7 @@ Item {
     readonly property bool   isConverting: recordState === "converting"
     readonly property bool   isDone:       recordState === "done"
     readonly property string recordFormat: mainInstance?.recordFormat  ?? "gif"
-    readonly property string recordPath:   mainInstance?.recordPath    ?? ""
+    property string          recordPath:   ""
     readonly property bool   hasResult:    activeTool !== "" && !isRunning
     readonly property bool _isNiri:     mainInstance?.isNiri     ?? false
     readonly property bool _isHyprland: mainInstance?.isHyprland ?? false
@@ -58,8 +58,15 @@ Item {
             root.viewedTool = "record"
     }
     onRecordStateChanged: {
-        if (recordState !== "") viewedTool = "record"
-        else if (viewedTool === "record") viewedTool = ""
+        if (recordState !== "") {
+            viewedTool = "record"
+            // Explicitly snapshot the path — the var?. binding chain doesn't
+            // reliably track inner-property changes on a var-typed mainInstance
+            if (mainInstance) root.recordPath = mainInstance.recordPath
+        } else if (viewedTool === "record") {
+            viewedTool = ""
+            root.recordPath = ""
+        }
     }
     onVisibleChanged: {
         if (!visible) {
