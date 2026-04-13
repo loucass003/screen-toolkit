@@ -485,7 +485,7 @@ Variants {
             height: overlayWin.currentStroke ? Math.abs(overlayWin.currentStroke.y2 - overlayWin.currentStroke.y1) : 0
             color:        "transparent"
             border.color: "#ffffff"
-            border.width: 1.5
+            border.width: Style.borderM
             opacity:      0.8
         }
         Rectangle {
@@ -791,11 +791,11 @@ Variants {
             radius:       Style.radiusL
             color:        Color.mSurface
             border.color: Style.capsuleBorderColor || "transparent"
-            border.width: Style.capsuleBorderWidth || 1
+            border.width: Style.capsuleBorderWidth || Style.borderS
             component ToolbarSeparator: Rectangle {
                 readonly property bool vertical: toolbar.useVertical
-                width:   vertical ? 28 : 1
-                height:  vertical ? 1 : 28
+                width:   vertical ? 28 : Style.borderS
+                height:  vertical ? Style.borderS : 28
                 color:   Color.mOnSurfaceVariant
                 opacity: 0.3
                 anchors.horizontalCenter: vertical ? parent.horizontalCenter : undefined
@@ -921,7 +921,13 @@ Variants {
                     visible: !parent.isVertical
                     Repeater {
                         model: 3
-                        Rectangle { width: 14; height: 2; radius: 1; color: Color.mOnSurfaceVariant; opacity: 0.6 }
+                        Rectangle {
+                            width:  Style.marginL
+                            height: Style.marginXXS
+                            radius: Style.radiusXXXS
+                            color:  Color.mOnSurfaceVariant
+                            opacity: 0.6
+                        }
                     }
                 }
                 Row {
@@ -930,7 +936,13 @@ Variants {
                     visible: parent.isVertical
                     Repeater {
                         model: 3
-                        Rectangle { width: 2; height: 14; radius: 1; color: Color.mOnSurfaceVariant; opacity: 0.6 }
+                        Rectangle {
+                            width:  Style.marginXXS
+                            height: Style.marginL
+                            radius: Style.radiusXXXS
+                            color:  Color.mOnSurfaceVariant
+                            opacity: 0.6
+                        }
                     }
                 }
                 MouseArea {
@@ -951,28 +963,28 @@ Variants {
                         overlayWin._tbUserX = toolbar._dragStx + (gp.x - toolbar._dragSx)
                         overlayWin._tbUserY = toolbar._dragSty + (gp.y - toolbar._dragSy)
                     }
-                    onEntered: TooltipService.show(parent, "Drag to move toolbar")
+                    onEntered: TooltipService.show(parent, root.mainInstance?.pluginApi?.tr("annotate.dragToolbar"))
                     onExited:  TooltipService.hide()
                 }
             }
             readonly property var toolDefs: [
-                { id: "pencil",      icon: "pencil",         tooltip: "Draw freehand"   },
-                { id: "highlighter", icon: "highlight",      tooltip: "Highlight area"  },
-                { id: "line",        icon: "slash",          tooltip: "Draw line"       },
-                { id: "arrow",       icon: "arrow-up-right", tooltip: "Draw arrow"      },
-                { id: "rect",        icon: "square",         tooltip: "Draw rectangle"  },
-                { id: "circle",      icon: "circle",         tooltip: "Draw ellipse"    },
-                { id: "text",        icon: "text-size",      tooltip: "Add text"        },
-                { id: "blur",        icon: "eye-off",        tooltip: "Pixelate region" }
+                { id: "pencil",      icon: "pencil",         tooltip: root.mainInstance?.pluginApi?.tr("annotate.toolPencil")      },
+                { id: "highlighter", icon: "highlight",      tooltip: root.mainInstance?.pluginApi?.tr("annotate.toolHighlighter") },
+                { id: "line",        icon: "slash",          tooltip: root.mainInstance?.pluginApi?.tr("annotate.toolLine")        },
+                { id: "arrow",       icon: "arrow-up-right", tooltip: root.mainInstance?.pluginApi?.tr("annotate.toolArrow")       },
+                { id: "rect",        icon: "square",         tooltip: root.mainInstance?.pluginApi?.tr("annotate.toolRect")        },
+                { id: "circle",      icon: "circle",         tooltip: root.mainInstance?.pluginApi?.tr("annotate.toolCircle")      },
+                { id: "text",        icon: "text-size",      tooltip: root.mainInstance?.pluginApi?.tr("annotate.toolText")        },
+                { id: "blur",        icon: "eye-off",        tooltip: root.mainInstance?.pluginApi?.tr("annotate.toolBlur")        }
             ]
             readonly property var colorDefs: [
                 "#FF4444", "#FF8C00", "#FFD700", "#44FF88",
                 "#44AAFF", "#CC44FF", "#FF44CC", "#FFFFFF", "#000000"
             ]
             readonly property var sizeDefs: [
-                { size: 2, label: root.mainInstance?.pluginApi?.tr("annotate.sizeS") ?? "S" },
-                { size: 4, label: root.mainInstance?.pluginApi?.tr("annotate.sizeM") ?? "M" },
-                { size: 7, label: root.mainInstance?.pluginApi?.tr("annotate.sizeL") ?? "L" }
+                { size: 2, label: root.mainInstance?.pluginApi?.tr("annotate.sizeS") },
+                { size: 4, label: root.mainInstance?.pluginApi?.tr("annotate.sizeM") },
+                { size: 7, label: root.mainInstance?.pluginApi?.tr("annotate.sizeL") }
             ]
             function doUndo() {
                 if (overlayWin.strokes.length > 0) {
@@ -1007,7 +1019,7 @@ Variants {
                     ToolbarSeparator {}
                     ZoomBtn {
                         iconName:   "zoom-out"
-                        tip:        "Zoom out"
+                        tip:        root.mainInstance?.pluginApi?.tr("annotate.zoomOut")
                         btnEnabled: root.zoomScale > 1.0
                         onClicked:  overlayWin.requestZoom(Math.max(1.0, root.zoomScale - 1.0))
                     }
@@ -1022,7 +1034,7 @@ Variants {
                     }
                     ZoomBtn {
                         iconName:   "zoom-in"
-                        tip:        "Zoom in (view only)"
+                        tip:        root.mainInstance?.pluginApi?.tr("annotate.zoomIn")
                         btnEnabled: root.zoomScale < 5.0
                         onClicked:  overlayWin.requestZoom(Math.min(5.0, root.zoomScale + 1.0))
                     }
@@ -1032,7 +1044,7 @@ Variants {
                         anchors.verticalCenter: parent.verticalCenter
                         color:        overlayWin.drawColor
                         border.color: overlayWin.showPopover ? Color.mPrimary : Qt.rgba(0, 0, 0, 0.2)
-                        border.width: overlayWin.showPopover ? 2 : 1
+                        border.width: overlayWin.showPopover ? Style.borderM : Style.borderS
                         scale: colorBtnH.containsMouse ? 1.1 : 1
                         Behavior on scale { NumberAnimation { duration: 80 } }
                         MouseArea {
@@ -1046,23 +1058,27 @@ Variants {
                         }
                     }
                     ToolbarSeparator {}
-                    ActionBtn { iconName: "corner-up-left"; tip: "Undo last stroke"; onClicked: toolbar.doUndo() }
-                    ActionBtn { iconName: "trash";          tip: "Clear all"; danger: true; onClicked: toolbar.doClear() }
+                    ActionBtn { iconName: "corner-up-left"; tip: root.mainInstance?.pluginApi?.tr("annotate.undo");     onClicked: toolbar.doUndo() }
+                    ActionBtn { iconName: "trash";          tip: root.mainInstance?.pluginApi?.tr("annotate.clearAll"); danger: true; onClicked: toolbar.doClear() }
                     SaveBtn {
                         iconName:  "copy"
-                        labelText: overlayWin.isSaving ? "Copying..." : "Copy"
-                        tip:       "Copy to clipboard"
+                        labelText: overlayWin.isSaving
+                            ? root.mainInstance?.pluginApi?.tr("annotate.copying")
+                            : root.mainInstance?.pluginApi?.tr("annotate.copy")
+                        tip:       root.mainInstance?.pluginApi?.tr("annotate.copyTip")
                         primary:   true
                         onClicked: overlayWin.flattenAndCopy()
                     }
                     SaveBtn {
                         iconName:  "device-floppy"
-                        labelText: overlayWin.isSaving ? "Saving..." : "Save"
-                        tip:       "Save to disk"
+                        labelText: overlayWin.isSaving
+                            ? root.mainInstance?.pluginApi?.tr("annotate.saving")
+                            : root.mainInstance?.pluginApi?.tr("annotate.save")
+                        tip:       root.mainInstance?.pluginApi?.tr("annotate.saveTip")
                         primary:   false
                         onClicked: overlayWin.flattenAndSave()
                     }
-                    ActionBtn { iconName: "x"; tip: "Close"; onClicked: toolbar.doClose() }
+                    ActionBtn { iconName: "x"; tip: root.mainInstance?.pluginApi?.tr("annotate.close"); onClicked: toolbar.doClose() }
                     ToolbarSeparator {}
                     DragBtn { isVertical: false; anchors.verticalCenter: parent.verticalCenter }
                 }
@@ -1078,7 +1094,7 @@ Variants {
                     ToolbarSeparator {}
                     ZoomBtn {
                         iconName:   "zoom-out"
-                        tip:        "Zoom out"
+                        tip:        root.mainInstance?.pluginApi?.tr("annotate.zoomOut")
                         btnEnabled: root.zoomScale > 1.0
                         onClicked:  overlayWin.requestZoom(Math.max(1.0, root.zoomScale - 1.0))
                     }
@@ -1091,7 +1107,7 @@ Variants {
                     }
                     ZoomBtn {
                         iconName:   "zoom-in"
-                        tip:        "Zoom in (view only)"
+                        tip:        root.mainInstance?.pluginApi?.tr("annotate.zoomIn")
                         btnEnabled: root.zoomScale < 5.0
                         onClicked:  overlayWin.requestZoom(Math.min(5.0, root.zoomScale + 1.0))
                     }
@@ -1101,7 +1117,7 @@ Variants {
                         anchors.horizontalCenter: parent.horizontalCenter
                         color:        overlayWin.drawColor
                         border.color: overlayWin.showPopover ? Color.mPrimary : Qt.rgba(0, 0, 0, 0.2)
-                        border.width: overlayWin.showPopover ? 2 : 1
+                        border.width: overlayWin.showPopover ? Style.borderM : Style.borderS
                         scale: colorBtnV.containsMouse ? 1.1 : 1
                         Behavior on scale { NumberAnimation { duration: 80 } }
                         MouseArea {
@@ -1115,11 +1131,11 @@ Variants {
                         }
                     }
                     ToolbarSeparator {}
-                    ActionBtn { iconName: "corner-up-left"; tip: "Undo last stroke"; onClicked: toolbar.doUndo() }
-                    ActionBtn { iconName: "trash";          tip: "Clear all"; danger: true; onClicked: toolbar.doClear() }
-                    ActionBtn { iconName: "copy";           tip: "Copy to clipboard"; onClicked: overlayWin.flattenAndCopy() }
-                    ActionBtn { iconName: "device-floppy";  tip: "Save to disk";      onClicked: overlayWin.flattenAndSave() }
-                    ActionBtn { iconName: "x";              tip: "Close";             onClicked: toolbar.doClose() }
+                    ActionBtn { iconName: "corner-up-left"; tip: root.mainInstance?.pluginApi?.tr("annotate.undo");     onClicked: toolbar.doUndo() }
+                    ActionBtn { iconName: "trash";          tip: root.mainInstance?.pluginApi?.tr("annotate.clearAll"); danger: true; onClicked: toolbar.doClear() }
+                    ActionBtn { iconName: "copy";           tip: root.mainInstance?.pluginApi?.tr("annotate.copyTip");  onClicked: overlayWin.flattenAndCopy() }
+                    ActionBtn { iconName: "device-floppy";  tip: root.mainInstance?.pluginApi?.tr("annotate.saveTip");  onClicked: overlayWin.flattenAndSave() }
+                    ActionBtn { iconName: "x";              tip: root.mainInstance?.pluginApi?.tr("annotate.close");    onClicked: toolbar.doClose() }
                     ToolbarSeparator {}
                     DragBtn { isVertical: true; anchors.horizontalCenter: parent.horizontalCenter }
                 }
@@ -1131,7 +1147,7 @@ Variants {
             radius:       Style.radiusL
             color:        Color.mSurface
             border.color: Style.capsuleBorderColor || "transparent"
-            border.width: Style.capsuleBorderWidth || 1
+            border.width: Style.capsuleBorderWidth || Style.borderS
             width:  toolbar.useVertical ? (popContent.implicitWidth  + Style.marginS) : (popContent.implicitWidth  + Style.marginM)
             height: toolbar.useVertical ? (popContent.implicitHeight + Style.marginM) : (popContent.implicitHeight + Style.marginS)
             x: toolbar.useVertical
@@ -1154,7 +1170,7 @@ Variants {
                         delegate: Rectangle {
                             width: 20; height: 20; radius: 10; color: modelData
                             border.color: overlayWin.drawColor === modelData ? Color.mPrimary : Qt.rgba(0, 0, 0, 0.15)
-                            border.width: overlayWin.drawColor === modelData ? 2 : 1
+                            border.width: overlayWin.drawColor === modelData ? Style.borderM : Style.borderS
                             scale: chH.containsMouse ? 1.2 : 1
                             Behavior on scale { NumberAnimation { duration: 80 } }
                             MouseArea {
@@ -1164,14 +1180,18 @@ Variants {
                             }
                         }
                     }
-                    Rectangle { width: 1; height: 16; color: Color.mOnSurfaceVariant; opacity: 0.3; anchors.verticalCenter: parent.verticalCenter }
+                    Rectangle {
+                        width: Style.borderS; height: 16
+                        color: Color.mOnSurfaceVariant; opacity: 0.3
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                     Repeater {
                         model: toolbar.sizeDefs
                         delegate: Rectangle {
                             width:  28; height: 24; radius: Style.radiusS
                             color:        overlayWin.drawSize === modelData.size ? Color.mPrimaryContainer || Color.mSurfaceVariant : (shH.containsMouse ? Color.mHover : "transparent")
                             border.color: overlayWin.drawSize === modelData.size ? Color.mPrimary : "transparent"
-                            border.width: 1
+                            border.width: Style.borderS
                             Row {
                                 anchors.centerIn: parent; spacing: Style.marginXS
                                 Rectangle { width: modelData.size * 2; height: modelData.size * 2; radius: modelData.size; color: overlayWin.drawColor; anchors.verticalCenter: parent.verticalCenter }
@@ -1195,7 +1215,7 @@ Variants {
                         delegate: Rectangle {
                             width: 20; height: 20; radius: 10; color: modelData
                             border.color: overlayWin.drawColor === modelData ? Color.mPrimary : Qt.rgba(0, 0, 0, 0.15)
-                            border.width: overlayWin.drawColor === modelData ? 2 : 1
+                            border.width: overlayWin.drawColor === modelData ? Style.borderM : Style.borderS
                             scale: chV.containsMouse ? 1.2 : 1
                             Behavior on scale { NumberAnimation { duration: 80 } }
                             MouseArea {
@@ -1205,14 +1225,18 @@ Variants {
                             }
                         }
                     }
-                    Rectangle { width: 16; height: 1; color: Color.mOnSurfaceVariant; opacity: 0.3; anchors.horizontalCenter: parent.horizontalCenter }
+                    Rectangle {
+                        width: 16; height: Style.borderS
+                        color: Color.mOnSurfaceVariant; opacity: 0.3
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
                     Repeater {
                         model: toolbar.sizeDefs
                         delegate: Rectangle {
                             width:  32; height: 24; radius: Style.radiusS
                             color:        overlayWin.drawSize === modelData.size ? Color.mPrimaryContainer || Color.mSurfaceVariant : (shV.containsMouse ? Color.mHover : "transparent")
                             border.color: overlayWin.drawSize === modelData.size ? Color.mPrimary : "transparent"
-                            border.width: 1
+                            border.width: Style.borderS
                             Row {
                                 anchors.centerIn: parent; spacing: Style.marginXS
                                 Rectangle { width: modelData.size * 2; height: modelData.size * 2; radius: modelData.size; color: overlayWin.drawColor; anchors.verticalCenter: parent.verticalCenter }
