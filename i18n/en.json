@@ -121,11 +121,11 @@
     }
   },
   "regionSelector": {
-    "drag": "Drag",
+    "drag": "Drag ",
     "toSelect": "to select",
-    "clickWindow": "Click window",
+    "clickWindow": "Click window ",
     "toSnap": "to snap",
-    "esc": "Esc",
+    "esc": "Esc ",
     "toCancel": "to cancel"
   },
   "annotate": {
@@ -141,6 +141,9 @@
     "windowTooltip": "Annotate the focused window",
     "windowHyprlandOnly": "Hyprland only",
     "fullscreen": "Fullscreen",
+    "sizeS": "S",
+    "sizeM": "M",
+    "sizeL": "L",
     "fullscreenTooltip": "Annotate the entire screen"
   },
   "record": {

@@ -21,9 +21,11 @@ Item {
             _primaryScreen = Quickshell.screens[0] ?? null
         }
         isVisible = true
+        _cameraActive = true
     }
     function hide() {
         isVisible = false
+        _cameraActive = false
         _primaryScreen = null
     }
     function toggle(screen) {
@@ -38,6 +40,7 @@ Item {
     property int  xPos: -1
     property int  yPos: -1
     property var _primaryScreen: null
+    property bool _cameraActive: false
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -79,7 +82,7 @@ Item {
                 clip: true
                 Loader {
                     id: cameraLoader
-                    active: win.visible && win.isPrimary
+                    active: root._cameraActive && win.isPrimary
                     anchors.fill: parent
                     sourceComponent: Component {
                         Item {
@@ -211,8 +214,8 @@ Item {
                     }
                 }
                 component ResizeHandle: MouseArea {
-                    property int mode: 0 // 0: BR, 1: BL, 2: TR, 3: TL
-                    width: 24; height: 24 // Slightly larger hit area
+                    property int mode: 0
+                    width: 24; height: 24
                     hoverEnabled: true
                     preventStealing: true
                     cursorShape: {
@@ -242,7 +245,7 @@ Item {
                             nw = Math.max(150, startW + dx)
                         } else {
                             nw = Math.max(150, startW - dx)
-                            nx = startX + (startW - nw) // Adjust X to keep right edge stable
+                            nx = startX + (startW - nw)
                         }
                         var nh = root.isSquare ? nw : Math.round(nw * 9 / 16)
                         nh = Math.max(100, nh)

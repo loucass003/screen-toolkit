@@ -109,7 +109,7 @@ Item {
     function _grimRegionCmd(outFile) {
         if (!root._regionScreen)
             Logger.w("ScreenToolkit", "_grimRegionCmd: _regionScreen is null")
-        var scale = root._regionScreen?.devicePixelRatio ?? 1.0
+        var scale = Math.max(0.1, root._regionScreen?.devicePixelRatio ?? 1.0)
         var sx    = root._regionScreen?.x ?? 0
         var sy    = root._regionScreen?.y ?? 0
         var gx = sx + Math.round(root._regionX / scale)
@@ -563,7 +563,6 @@ Timer {
             annotateWinProc.exec({ command: ["bash", "-c", cmd] })
         }
     }
-
     Timer {
         id: launchAnnotateFullscreen
         interval: 380; repeat: false
@@ -581,7 +580,7 @@ Timer {
         id: launchPin
         interval: 50; repeat: false
         onTriggered: {
-            var scale = root._regionScreen?.devicePixelRatio ?? 1.0
+            var scale = Math.max(0.1, root._regionScreen?.devicePixelRatio ?? 1.0)
             var sx    = root._regionScreen?.x ?? 0
             var sy    = root._regionScreen?.y ?? 0
             var gx = sx + Math.round(root._regionX / scale)

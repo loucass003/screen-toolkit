@@ -122,15 +122,15 @@ Item {
                     readonly property int edgePx:   8
                     readonly property int cornerPx: 18
                     readonly property int globalIdx: modelData.globalIdx
-                    property real   pinW:       pinsModel.get(globalIdx).w
-                    property real   pinH:       pinsModel.get(globalIdx).h
-                    property real   pinOpacity: pinsModel.get(globalIdx).pinOpacity
-                    property string fillMode:   pinsModel.get(globalIdx).fillMode
-                    readonly property string pinImgPath: pinsModel.get(globalIdx).imgPath
+                    property real   pinW:       globalIdx < pinsModel.count ? pinsModel.get(globalIdx).w        : 0
+                    property real   pinH:       globalIdx < pinsModel.count ? pinsModel.get(globalIdx).h        : 0
+                    property real   pinOpacity: globalIdx < pinsModel.count ? pinsModel.get(globalIdx).pinOpacity : 1.0
+                    property string fillMode:   globalIdx < pinsModel.count ? pinsModel.get(globalIdx).fillMode : "fit"
+                    readonly property string pinImgPath: globalIdx < pinsModel.count ? pinsModel.get(globalIdx).imgPath : ""
                     property bool _dragging: false
                     property bool _ctxOpen:  false
-                    x: pinsModel.get(globalIdx).posX
-                    y: pinsModel.get(globalIdx).posY
+                    x: globalIdx < pinsModel.count ? pinsModel.get(globalIdx).posX : 0
+                    y: globalIdx < pinsModel.count ? pinsModel.get(globalIdx).posY : 0
                     width:  pinW
                     height: pinH
 
@@ -160,7 +160,7 @@ Item {
                         border.color: cardHover.hovered
                             ? Qt.rgba(1, 1, 1, 0.28)
                             : Qt.rgba(1, 1, 1, 0.07)
-                        border.width: 1
+                        border.width: Style.capsuleBorderWidth || 1
                         clip: true
                         opacity: pinDelegate.pinOpacity
                         Behavior on border.color { ColorAnimation { duration: 120 } }
@@ -210,7 +210,7 @@ Item {
                             anchors.bottomMargin: Style.marginM
                             width:  stripRow.implicitWidth + Style.marginM * 2
                             height: 36
-                            radius: 18
+                            radius: Style.radiusL
                             color:  Qt.rgba(0, 0, 0, 0.55)
                             z: 3
                             opacity: (cardHover.hovered || pinDelegate._ctxOpen) ? 1.0 : 0.0
@@ -414,11 +414,11 @@ Item {
                             width: implicitWidth; height: implicitHeight
                             radius: Style.radiusM
                             color: Color.mSurface
-                            border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
+                            border.color: Qt.rgba(1, 1, 1, 0.12); border.width: Style.capsuleBorderWidth || 1
                             Column {
                                 id: menuCol
                                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: Style.marginS }
-                                spacing: 2
+                                spacing: Style.marginXS
                                 component MenuItem: Rectangle {
                                     property string mIcon:    ""
                                     property string mLabel:   ""

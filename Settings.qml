@@ -86,7 +86,7 @@ ColumnLayout {
         spacing: Style.marginS
 
         ColumnLayout {
-            spacing: 2
+            spacing: Style.marginXS
             NLabel {
                 label: pluginApi?.tr("settings.filenameFormat")
             }
@@ -209,4 +209,3 @@ ColumnLayout {
         }
     }
 }
-

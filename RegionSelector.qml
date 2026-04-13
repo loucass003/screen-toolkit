@@ -13,6 +13,7 @@ Variants {
     property var activeScreen: null
     property var windowRegions: []
     property bool windowRegionsFetched: false
+    property bool isNiri: false
     function show(screen) {
         var target = screen || null
         if (!target && Quickshell.screens.length > 0)
@@ -38,6 +39,13 @@ Variants {
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         WlrLayershell.namespace: "noctalia-region-selector"
+        Process {
+            id: _envCheckProc
+            stdout: StdioCollector {}
+            onExited: {
+                selectorVariants.isNiri = _envCheckProc.stdout.text.trim() === "1"
+            }
+        }
         Process {
             id: _winFetchProc
             stdout: StdioCollector {}
@@ -79,7 +87,6 @@ Variants {
         property real mouseX: 0; property real mouseY: 0
         property point startPos
         property bool dragging: false
-        property int hoveredWin: -1
         Timer {
             id: dragSyncTimer; interval: 16; repeat: true; running: win.dragging
             onTriggered: {
@@ -94,15 +101,18 @@ Variants {
         }
         onVisibleChanged: {
             if (visible) {
+                _envCheckProc.exec({
+                    command: ["bash", "-c",
+                        "[ -n \"$NIRI_SOCKET\" ] && echo 1 || echo 0"
+                    ]
+                })
                 _winFetchProc.exec({
                     command: ["bash", "-c",
                         "if [ -n \"$HYPRLAND_INSTANCE_SIGNATURE\" ]; then" +
-                        "  # Hyprland: Get ALL mapped clients, calculate global coords" +
                         "  hyprctl clients -j 2>/dev/null | jq -r '" +
                         "    .[] | select(.mapped == true) | " +
                         "    \"\\(.at[0]),\\(.at[1]) \\(.size[0])x\\(.size[1]) \\(.title)\"' 2>/dev/null;" +
                         "elif [ -n \"$NIRI_SOCKET\" ]; then" +
-                        "  # Niri: Get windows relative to output" +
                         "  OUT=$(niri msg --json focused-output 2>/dev/null);" +
                         "  OX=$(printf '%s' \"$OUT\" | jq -r '(.logical.x // 0)' 2>/dev/null);" +
                         "  OY=$(printf '%s' \"$OUT\" | jq -r '(.logical.y // 0)' 2>/dev/null);" +
@@ -115,24 +125,17 @@ Variants {
                         "fi"
                     ]
                 })
-                fadeOpacity = 0.0; hoveredWin = -1; dragging = false
+                fadeOpacity = 0.0; dragging = false
                 animateSelection = false
                 selX = 0; selY = 0; selW = 0; selH = 0
                 targetX = 0; targetY = 0; targetW = 0; targetH = 0
                 animateSelection = true
                 fadeIn.restart()
             } else {
-                fadeIn.stop(); dragging = false; hoveredWin = -1
+                fadeIn.stop(); dragging = false
             }
         }
-        onHoveredWinChanged: {
-            if (hoveredWin < 0 && !dragging) {
-                animateSelection = false
-                selX = 0; selY = 0; selW = 0; selH = 0
-                animateSelection = true
-                guides.requestPaint()
-            }
-        }
+
         property var pendingCapture: null
         Timer {
             id: captureDelay; interval: 80; repeat: false
@@ -160,37 +163,7 @@ Variants {
             property vector2d screenSize: Qt.vector2d(win.width, win.height)
             fragmentShader: Qt.resolvedUrl("dimming.frag.qsb")
         }
-        Repeater {
-            model: selectorVariants.windowRegionsFetched ? selectorVariants.windowRegions : []
-            delegate: Item {
-                readonly property var region: modelData
-                readonly property bool isHovered: win.hoveredWin === index
-                x: region.x - (win.screen?.x ?? 0)
-                y: region.y - (win.screen?.y ?? 0)
-                width: region.w; height: region.h; z: 1
-                opacity: win.fadeOpacity * (win.dragging ? 0 : 1)
-                visible: !win.dragging
-                Behavior on opacity { NumberAnimation { duration: 150 } }
-                Rectangle {
-                    anchors.fill: parent; color: "transparent"; radius: 8
-                    border.color: isHovered ? Color.mPrimary : Qt.rgba(1, 1, 1, 0.25)
-                    border.width: isHovered ? 2 : 1
-                    Behavior on border.color { ColorAnimation { duration: 100 } }
-                    Behavior on border.width  { NumberAnimation  { duration: 100 } }
-                }
-                Rectangle {
-                    visible: isHovered && region.title !== ""
-                    x: 10; y: 10
-                    width: _winTitle.implicitWidth + 18; height: 26; radius: 13
-                    color: Color.mPrimary
-                    NText {
-                        id: _winTitle; anchors.centerIn: parent; font.weight: Font.Bold
-                        text: region.title.length > 48 ? region.title.substring(0, 48) + "…" : region.title
-                        color: Color.mOnPrimary; pointSize: Style.fontSizeXS
-                    }
-                }
-            }
-        }
+
         Canvas {
             id: guides
             anchors.fill: parent; z: 2; opacity: win.fadeOpacity
@@ -269,11 +242,13 @@ Variants {
         Rectangle {
             readonly property real dpr: win.screen?.devicePixelRatio ?? 1.0
             visible: win.selW > 30 && win.selH > 10; z: 10; opacity: win.fadeOpacity
-            width: _szText.implicitWidth + 22; height: 30; radius: 15
+            width: _szText.implicitWidth + Style.marginL
+            height: Style.controlHeightS
+            radius: Style.controlHeightS / 2
             color: Qt.rgba(0, 0, 0, 0.85)
             border.color: Qt.rgba(1, 1, 1, 0.2); border.width: 1
             x: Math.max(4, Math.min(win.selX + win.selW/2 - width/2, win.width - width - 4))
-            y: win.selY > 48 ? win.selY - height - 10 : win.selY + win.selH + 10
+            y: win.selY > 48 ? win.selY - height - Style.marginS : win.selY + win.selH + Style.marginS
             Behavior on x { NumberAnimation { duration: 80; easing.type: Easing.OutCubic } }
             Behavior on y { NumberAnimation { duration: 80; easing.type: Easing.OutCubic } }
             NText {
@@ -284,7 +259,9 @@ Variants {
         }
         Rectangle {
             visible: !win.dragging && win.selW < 4; z: 10; opacity: win.fadeOpacity
-            width: _coordText.implicitWidth + 14; height: 22; radius: 5
+            width: _coordText.implicitWidth + Style.marginM
+            height: Style.controlHeightXXS
+            radius: Style.radiusS
             color: Qt.rgba(0, 0, 0, 0.75)
             x: { var bx = win.mouseX + 20; return bx + width > win.width - 4 ? win.mouseX - width - 20 : bx }
             y: { var by = win.mouseY + 20; return by + height > win.height - 4 ? win.mouseY - height - 20 : by }
@@ -293,23 +270,26 @@ Variants {
                 color: Qt.rgba(1,1,1,0.9); pointSize: Style.fontSizeXS }
         }
         Rectangle {
-            anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 24 }
+            anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: Style.marginXL }
             z: 10; opacity: win.fadeOpacity * 0.9
-            width: _hintRow.implicitWidth + 32; height: 32; radius: 16
+            width: _hintRow.implicitWidth + Style.marginXL
+            height: Style.controlHeightS
+            radius: Style.controlHeightS / 2
             color: Qt.rgba(0, 0, 0, 0.75)
             border.color: Qt.rgba(1,1,1,0.1); border.width: 1
             Row {
                 id: _hintRow; anchors.centerIn: parent; spacing: 0
                 NText { text: pluginApi?.tr("regionSelector.drag");        color: Qt.rgba(1,1,1,0.7); pointSize: Style.fontSizeXS; font.weight: Font.Bold }
                 NText { text: pluginApi?.tr("regionSelector.toSelect");    color: Qt.rgba(1,1,1,0.4);  pointSize: Style.fontSizeXS }
-                Item { width: 18; height: 1 }
+                // Window snap hint — hidden on Niri since window detection is unreliable there
+                Item { width: Style.marginL; height: 1; visible: !selectorVariants.isNiri }
+                Rectangle { width: 1; height: 14; color: Qt.rgba(1,1,1,0.25); anchors.verticalCenter: parent.verticalCenter; visible: !selectorVariants.isNiri }
+                Item { width: Style.marginL; height: 1; visible: !selectorVariants.isNiri }
+                NText { text: pluginApi?.tr("regionSelector.clickWindow"); color: Qt.rgba(1,1,1,0.7); pointSize: Style.fontSizeXS; font.weight: Font.Bold; visible: !selectorVariants.isNiri }
+                NText { text: pluginApi?.tr("regionSelector.toSnap");      color: Qt.rgba(1,1,1,0.4);  pointSize: Style.fontSizeXS; visible: !selectorVariants.isNiri }
+                Item { width: Style.marginL; height: 1 }
                 Rectangle { width: 1; height: 14; color: Qt.rgba(1,1,1,0.25); anchors.verticalCenter: parent.verticalCenter }
-                Item { width: 18; height: 1 }
-                NText { text: pluginApi?.tr("regionSelector.clickWindow"); color: Qt.rgba(1,1,1,0.7); pointSize: Style.fontSizeXS; font.weight: Font.Bold }
-                NText { text: pluginApi?.tr("regionSelector.toSnap");      color: Qt.rgba(1,1,1,0.4);  pointSize: Style.fontSizeXS }
-                Item { width: 18; height: 1 }
-                Rectangle { width: 1; height: 14; color: Qt.rgba(1,1,1,0.25); anchors.verticalCenter: parent.verticalCenter }
-                Item { width: 18; height: 1 }
+                Item { width: Style.marginL; height: 1 }
                 NText { text: pluginApi?.tr("regionSelector.esc");         color: Qt.rgba(1,1,1,0.7); pointSize: Style.fontSizeXS; font.weight: Font.Bold }
                 NText { text: pluginApi?.tr("regionSelector.toCancel");    color: Qt.rgba(1,1,1,0.4);  pointSize: Style.fontSizeXS }
             }
@@ -317,7 +297,7 @@ Variants {
         MouseArea {
             anchors.fill: parent; z: 3; hoverEnabled: true
             acceptedButtons: Qt.LeftButton | Qt.RightButton
-            cursorShape: win.hoveredWin >= 0 ? Qt.PointingHandCursor : Qt.CrossCursor
+            cursorShape: Qt.CrossCursor
             onPressed: (mouse) => {
                 if (mouse.button === Qt.RightButton) {
                     selectorVariants.hide(); selectorVariants.cancelled(); return
@@ -329,7 +309,7 @@ Variants {
                 win.selX = mouse.x;    win.selY = mouse.y
                 win.selW = 0;          win.selH = 0
                 win.animateSelection = true
-                win.dragging = true; win.hoveredWin = -1
+                win.dragging = true
                 guides.requestPaint()
             }
             onPositionChanged: (mouse) => {
@@ -340,36 +320,27 @@ Variants {
                     win.targetY = Math.min(win.startPos.y, mouse.y)
                     win.targetW = Math.abs(mouse.x - win.startPos.x)
                     win.targetH = Math.abs(mouse.y - win.startPos.y)
-                } else {
-                    var hi = win._winAt(mouse.x, mouse.y)
-                    if (hi !== win.hoveredWin) {
-                        win.hoveredWin = hi
-                        if (hi >= 0) {
-                            var r = selectorVariants.windowRegions[hi]
-                            var offx = win.screen?.x ?? 0, offy = win.screen?.y ?? 0
-                            win.selX = r.x - offx; win.selY = r.y - offy
-                            win.selW = r.w;         win.selH = r.h
-                        }
-                    }
                 }
             }
             onReleased: (mouse) => {
                 if (mouse.button === Qt.RightButton) return
                 win.dragging = false
                 if (win.selW < 5 && win.selH < 5) {
-                    var hi = win._winAt(mouse.x, mouse.y)
-                    if (hi >= 0) {
-                        var region = selectorVariants.windowRegions[hi]
-                        var scale = win.screen?.devicePixelRatio ?? 1.0
-                        var offx = win.screen?.x ?? 0, offy = win.screen?.y ?? 0
-                        win.pendingCapture = {
-                            x: Math.round((region.x - offx) * scale),
-                            y: Math.round((region.y - offy) * scale),
-                            w: Math.round(region.w * scale),
-                            h: Math.round(region.h * scale),
-                            screen: win.screen
+                    if (!selectorVariants.isNiri) {
+                        var hi = win._winAt(mouse.x, mouse.y)
+                        if (hi >= 0) {
+                            var region = selectorVariants.windowRegions[hi]
+                            var scale = win.screen?.devicePixelRatio ?? 1.0
+                            var offx = win.screen?.x ?? 0, offy = win.screen?.y ?? 0
+                            win.pendingCapture = {
+                                x: Math.round((region.x - offx) * scale),
+                                y: Math.round((region.y - offy) * scale),
+                                w: Math.round(region.w * scale),
+                                h: Math.round(region.h * scale),
+                                screen: win.screen
+                            }
+                            selectorVariants.hide(); captureDelay.start(); return
                         }
-                        selectorVariants.hide(); captureDelay.start(); return
                     }
                     selectorVariants.hide(); selectorVariants.cancelled(); return
                 }
@@ -395,4 +366,3 @@ Variants {
         }
     }
 }
-

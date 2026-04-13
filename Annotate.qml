@@ -204,22 +204,26 @@ Variants {
                 ctx.lineTo(stroke.x2, stroke.y2)
                 ctx.stroke()
             } else if (stroke.type === "arrow") {
-                var dx  = stroke.x2 - stroke.x1
-                var dy  = stroke.y2 - stroke.y1
-                var len = Math.sqrt(dx * dx + dy * dy)
+                var dx    = stroke.x2 - stroke.x1
+                var dy    = stroke.y2 - stroke.y1
+                var len   = Math.sqrt(dx * dx + dy * dy)
                 if (len < 2) { ctx.restore(); return }
+                var angle = Math.atan2(dy, dx)
+                var hs    = Math.max(stroke.size * 3.5, 10)
+                var hw    = Math.PI / 5
+                var baseFrac = Math.max(0, 1 - hs / len)
+                var bx    = stroke.x1 + dx * baseFrac
+                var by    = stroke.y1 + dy * baseFrac
                 ctx.beginPath()
                 ctx.moveTo(stroke.x1, stroke.y1)
-                ctx.lineTo(stroke.x2, stroke.y2)
+                ctx.lineTo(bx, by)
                 ctx.stroke()
-                var angle = Math.atan2(dy, dx)
-                var hs    = Math.max(stroke.size * 4, 12)
                 ctx.beginPath()
                 ctx.moveTo(stroke.x2, stroke.y2)
-                ctx.lineTo(stroke.x2 - hs * Math.cos(angle - Math.PI / 6),
-                           stroke.y2 - hs * Math.sin(angle - Math.PI / 6))
-                ctx.lineTo(stroke.x2 - hs * Math.cos(angle + Math.PI / 6),
-                           stroke.y2 - hs * Math.sin(angle + Math.PI / 6))
+                ctx.lineTo(stroke.x2 - hs * Math.cos(angle - hw),
+                           stroke.y2 - hs * Math.sin(angle - hw))
+                ctx.lineTo(stroke.x2 - hs * Math.cos(angle + hw),
+                           stroke.y2 - hs * Math.sin(angle + hw))
                 ctx.closePath()
                 ctx.fill()
             } else if (stroke.type === "rect") {
@@ -362,6 +366,7 @@ Variants {
         Shortcut {
             sequence: "Escape"
             onActivated: {
+                if (overlayWin.isSaving) return
                 overlayWin.strokes = []
                 _invalidateCache()
                 root.hide()
@@ -485,16 +490,16 @@ Variants {
         }
         Rectangle {
             visible: overlayWin.isPrimary && root.zoomScale > 1.0
-            x:      overlayWin.localX + root.regionW - width - 8
-            y:      overlayWin.localY + 8
-            width:  zoomBadgeRow.implicitWidth + 12
+            x:      overlayWin.localX + root.regionW - width - Style.marginXS
+            y:      overlayWin.localY + Style.marginXS
+            width:  zoomBadgeRow.implicitWidth + Style.marginS * 2
             height: 22
-            radius: 6
+            radius: Style.radiusS
             color:  Qt.rgba(0, 0, 0, 0.6)
             Row {
                 id: zoomBadgeRow
                 anchors.centerIn: parent
-                spacing: 4
+                spacing: Style.marginXS
                 NIcon { icon: "zoom-in"; color: "#ffffff" }
                 NText {
                     text:       Math.round(root.zoomScale) + "× — view only"
@@ -769,14 +774,14 @@ Variants {
             height: useVertical ? (toolbarContent.implicitHeight + Style.marginS * 2) : 52
             readonly property real _autoX: useVertical
                 ? (spaceRight >= 56
-                    ? Math.min(overlayWin.localX + root.regionW + 8, overlayWin.width - width - 8)
-                    : Math.max(8, overlayWin.localX - width - 8))
-                : Math.max(8, Math.min(overlayWin.localX + (root.regionW - width) / 2, overlayWin.width - width - 8))
+                    ? Math.min(overlayWin.localX + root.regionW + Style.marginS, overlayWin.width - width - Style.marginS)
+                    : Math.max(Style.marginS, overlayWin.localX - width - Style.marginS))
+                : Math.max(Style.marginS, Math.min(overlayWin.localX + (root.regionW - width) / 2, overlayWin.width - width - Style.marginS))
             readonly property real _autoY: useVertical
-                ? Math.max(8, Math.min(overlayWin.localY + (root.regionH - height) / 2, overlayWin.height - height - 8))
+                ? Math.max(Style.marginS, Math.min(overlayWin.localY + (root.regionH - height) / 2, overlayWin.height - height - Style.marginS))
                 : (spaceBelow >= 56
-                    ? overlayWin.localY + root.regionH + 8
-                    : Math.max(8, overlayWin.localY - height - 8))
+                    ? overlayWin.localY + root.regionH + Style.marginS
+                    : Math.max(Style.marginS, overlayWin.localY - height - Style.marginS))
             x: overlayWin._tbUserX >= 0
                ? Math.max(0, Math.min(overlayWin.width  - width,  overlayWin._tbUserX))
                : _autoX
@@ -790,7 +795,7 @@ Variants {
             component ToolbarSeparator: Rectangle {
                 readonly property bool vertical: toolbar.useVertical
                 width:   vertical ? 28 : 1
-                height:  vertical ? 1  : 28
+                height:  vertical ? 1 : 28
                 color:   Color.mOnSurfaceVariant
                 opacity: 0.3
                 anchors.horizontalCenter: vertical ? parent.horizontalCenter : undefined
@@ -879,7 +884,7 @@ Variants {
                 property bool   primary:    false
                 height: 36
                 radius: Style.radiusS
-                width:  _sbRow.implicitWidth + 32
+                width:  _sbRow.implicitWidth + Style.marginL
                 color:  sbHover.containsMouse
                     ? (primary ? Color.mPrimary : Color.mSecondary || Color.mPrimary)
                     : (primary ? Color.mPrimaryContainer || Color.mSurfaceVariant : Color.mSurfaceVariant)
@@ -912,7 +917,7 @@ Variants {
                 color:  dragMA.containsMouse || dragMA.pressed ? Color.mHover : "transparent"
                 Column {
                     anchors.centerIn: parent
-                    spacing: 3
+                    spacing: Style.marginXS
                     visible: !parent.isVertical
                     Repeater {
                         model: 3
@@ -921,7 +926,7 @@ Variants {
                 }
                 Row {
                     anchors.centerIn: parent
-                    spacing: 3
+                    spacing: Style.marginXS
                     visible: parent.isVertical
                     Repeater {
                         model: 3
@@ -965,9 +970,9 @@ Variants {
                 "#44AAFF", "#CC44FF", "#FF44CC", "#FFFFFF", "#000000"
             ]
             readonly property var sizeDefs: [
-                { size: 2, label: "S" },
-                { size: 4, label: "M" },
-                { size: 7, label: "L" }
+                { size: 2, label: root.mainInstance?.pluginApi?.tr("annotate.sizeS") ?? "S" },
+                { size: 4, label: root.mainInstance?.pluginApi?.tr("annotate.sizeM") ?? "M" },
+                { size: 7, label: root.mainInstance?.pluginApi?.tr("annotate.sizeL") ?? "L" }
             ]
             function doUndo() {
                 if (overlayWin.strokes.length > 0) {
@@ -1127,14 +1132,14 @@ Variants {
             color:        Color.mSurface
             border.color: Style.capsuleBorderColor || "transparent"
             border.width: Style.capsuleBorderWidth || 1
-            width:  toolbar.useVertical ? (popContent.implicitWidth  + 12) : (popContent.implicitWidth  + 16)
-            height: toolbar.useVertical ? (popContent.implicitHeight + 16) : (popContent.implicitHeight + 12)
+            width:  toolbar.useVertical ? (popContent.implicitWidth  + Style.marginS) : (popContent.implicitWidth  + Style.marginM)
+            height: toolbar.useVertical ? (popContent.implicitHeight + Style.marginM) : (popContent.implicitHeight + Style.marginS)
             x: toolbar.useVertical
-               ? (toolbar.spaceRight >= 56 ? toolbar.x + toolbar.width + 6 : toolbar.x - width - 6)
-               : Math.max(8, Math.min(toolbar.x + (toolbar.width - width) / 2, overlayWin.width - width - 8))
+               ? (toolbar.spaceRight >= 56 ? toolbar.x + toolbar.width + Style.marginXS : toolbar.x - width - Style.marginXS)
+               : Math.max(Style.marginS, Math.min(toolbar.x + (toolbar.width - width) / 2, overlayWin.width - width - Style.marginS))
             y: toolbar.useVertical
-               ? Math.max(8, Math.min(toolbar.y + (toolbar.height - height) / 2, overlayWin.height - height - 8))
-               : (toolbar.spaceAbove >= height + 10 ? toolbar.y - height - 6 : toolbar.y + toolbar.height + 6)
+               ? Math.max(Style.marginS, Math.min(toolbar.y + (toolbar.height - height) / 2, overlayWin.height - height - Style.marginS))
+               : (toolbar.spaceAbove >= height + Style.marginS ? toolbar.y - height - Style.marginXS : toolbar.y + toolbar.height + Style.marginXS)
             Loader {
                 id: popContent
                 anchors.centerIn: parent
@@ -1168,7 +1173,7 @@ Variants {
                             border.color: overlayWin.drawSize === modelData.size ? Color.mPrimary : "transparent"
                             border.width: 1
                             Row {
-                                anchors.centerIn: parent; spacing: 3
+                                anchors.centerIn: parent; spacing: Style.marginXS
                                 Rectangle { width: modelData.size * 2; height: modelData.size * 2; radius: modelData.size; color: overlayWin.drawColor; anchors.verticalCenter: parent.verticalCenter }
                                 NText { text: modelData.label; pointSize: Style.fontSizeXS; color: Color.mOnSurfaceVariant; anchors.verticalCenter: parent.verticalCenter }
                             }
@@ -1209,7 +1214,7 @@ Variants {
                             border.color: overlayWin.drawSize === modelData.size ? Color.mPrimary : "transparent"
                             border.width: 1
                             Row {
-                                anchors.centerIn: parent; spacing: 3
+                                anchors.centerIn: parent; spacing: Style.marginXS
                                 Rectangle { width: modelData.size * 2; height: modelData.size * 2; radius: modelData.size; color: overlayWin.drawColor; anchors.verticalCenter: parent.verticalCenter }
                                 NText { text: modelData.label; pointSize: Style.fontSizeXS; color: Color.mOnSurfaceVariant; anchors.verticalCenter: parent.verticalCenter }
                             }

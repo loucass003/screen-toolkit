@@ -337,7 +337,6 @@ Item {
                 Rectangle {
                     width:  (parent.width - Style.marginS * 2) / 3
                     height: 38; radius: Style.radiusM
-                    // BUG FIX: was `root.mainInstance?.isHyprland`, correct binding is root._isHyprland
                     enabled: root._isHyprland
                     color:        !enabled ? Color.mSurfaceVariant : (annotWinBtn.containsMouse ? Color.mSurfaceVariant : Color.mSurface)
                     border.color: Style.capsuleBorderColor
@@ -462,21 +461,17 @@ Item {
             Row {
                 width: parent.width; spacing: Style.marginS
                 visible: root.viewedTool === "pin" && !root.isRunning
-
-                
                 Rectangle {
                     width:  (parent.width - Style.marginS) / 2
                     height: 38; radius: Style.radiusM
                     color:        pinScreenBtn.containsMouse ? Color.mPrimary : Color.mSurface
                     border.color: Color.mPrimary
                     border.width: Style.capsuleBorderWidth || 1
-
                     Row {
                         anchors.centerIn: parent; spacing: Style.marginS
                         NIcon { icon: "crosshair"; color: pinScreenBtn.containsMouse ? Color.mOnPrimary : Color.mPrimary }
                         NText { text: pluginApi.tr("panel.pinCapture"); color: pinScreenBtn.containsMouse ? Color.mOnPrimary : Color.mPrimary; font.weight: Font.Bold; pointSize: Style.fontSizeS }
                     }
-
                     MouseArea {
                         id: pinScreenBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: root.mainInstance?.runPin()
@@ -484,21 +479,17 @@ Item {
                         onExited:  TooltipService.hide()
                     }
                 }
-
-                
                 Rectangle {
                     width:  (parent.width - Style.marginS) / 2
                     height: 38; radius: Style.radiusM
                     color:        pinFileBtn.containsMouse ? Color.mSurfaceVariant : Color.mSurface
                     border.color: Style.capsuleBorderColor || "transparent"
                     border.width: Style.capsuleBorderWidth || 1
-
                     Row {
                         anchors.centerIn: parent; spacing: Style.marginS
                         NIcon { icon: "folder-open"; color: pinFileBtn.containsMouse ? Color.mOnSurface : Color.mOnSurfaceVariant }
                         NText { text: pluginApi.tr("panel.pinFile"); color: pinFileBtn.containsMouse ? Color.mOnSurface : Color.mOnSurfaceVariant; font.weight: Font.Bold; pointSize: Style.fontSizeS }
                     }
-
                     MouseArea {
                         id: pinFileBtn; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: root.mainInstance?.runPinFromFile()
@@ -628,12 +619,12 @@ Item {
                         Image {
                             id: pixelImg
                             anchors.fill: parent
-                            source: root.colorCapturePath !== "" && root.colorCacheBust > 0
-                                ? ("file://" + root.colorCapturePath + "?t=" + root.colorCacheBust) : ""
+                            source: root.colorCapturePath !== "" ? ("file://" + root.colorCapturePath) : ""
                             fillMode: Image.Stretch; smooth: false; cache: false
                             visible: status === Image.Ready
+                            onStatusChanged: if (status === Image.Ready) visible = true
                         }
-                        Rectangle { anchors.centerIn: parent; width: 10; height: 10; radius: 5; color: "transparent"; border.color: "white"; border.width: 1; visible: pixelImg.status === Image.Ready }
+                        Rectangle { anchors.centerIn: parent; width: 10; height: 10; radius: 5; color: "transparent"; border.color: "white"; border.width: Style.capsuleBorderWidth || 1; visible: pixelImg.status === Image.Ready }
                         NText { anchors.centerIn: parent; visible: pixelImg.status !== Image.Ready; text: "..."; color: Color.mOnSurfaceVariant; pointSize: Style.fontSizeS }
                     }
                     Column {
@@ -1144,7 +1135,7 @@ Item {
         property bool   running: false
         signal triggered()
         Column {
-            anchors.centerIn: parent; spacing: 3
+            anchors.centerIn: parent; spacing: Style.marginXS
             Rectangle {
                 width:  Math.min(btn.width - 4, 44)
                 height: Math.min(btn.width - 4, 44)

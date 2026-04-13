@@ -5,7 +5,6 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Widgets
 import qs.Services.UI
-
 Item {
     id: root
     property var pluginApi: null
@@ -32,20 +31,17 @@ Item {
     property bool _previewBusy: false
     property real _maskW: 0
     property real _maskH: 0
-
     function _expandPath(p) {
         if (!p || p === "") return ""
         if (p.startsWith("~/"))
             return Quickshell.env("HOME") + "/" + p.substring(2)
         return p
     }
-
     function _recordOutputDir() {
         var custom = pluginApi?.pluginSettings?.videoPath ?? ""
         if (custom !== "") return _expandPath(custom.trim().replace(/\/$/, ""))
         return Quickshell.env("HOME") + "/Videos"
     }
-
     function _buildFilename(toolName, ext) {
         var fmt = pluginApi?.pluginSettings?.filenameFormat ?? ""
         if (fmt.trim() !== "") {
@@ -62,7 +58,6 @@ Item {
         }
         return toolName + "-" + Qt.formatDateTime(new Date(), "yyyy-MM-dd_HH-mm-ss") + ext
     }
-
     function startRecording(regionStr, fmt, audOut, audIn, cursor, uiOffsetX, uiOffsetY, screen) {
         if (root.isRecording || root.isConverting) return
         root.format        = (fmt === "mp4") ? "mp4" : "gif"
@@ -122,15 +117,14 @@ Item {
         }
         wfRecorderProc.exec({ command: ["bash", "-c", cmd] })
     }
-
     function stopRecording() {
         if (!root.isRecording) return
         elapsedTimer.stop()
         previewTimer.stop()
         stopProc.exec({ command: ["bash", "-c", "pkill -INT " + root._recorderBin + " 2>/dev/null || true"] })
     }
-
     function dismiss() {
+        if (root.isRecording) root.stopRecording()
         if (root.gifPath !== "")
             stopProc.exec({ command: ["bash", "-c", "rm -f " + shellEscape(root.gifPath)] })
         root.isRecording    = false
@@ -140,17 +134,14 @@ Item {
         root._previewBusy   = false
         root._primaryScreen = null
     }
-
     function shellEscape(str) {
         return "'" + str.replace(/'/g, "'\\''") + "'"
     }
-
     function formatTime(secs) {
         var m = Math.floor(secs / 60)
         var s = secs % 60
         return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
     }
-
     function _capturePreview() {
         if (root._previewBusy || !root.isRecording) return
         root._previewBusy = true
@@ -160,7 +151,6 @@ Item {
             " /tmp/screen-toolkit-record-preview.png 2>/dev/null"
         ]})
     }
-
     Process {
         id: previewCaptureProc
         onExited: (code) => {
@@ -168,7 +158,6 @@ Item {
             if (code === 0) root._frameToken++
         }
     }
-
     Process {
         id: wfRecorderProc
         onExited: (code) => {
@@ -186,8 +175,8 @@ Item {
                         "bash", "-c",
                         "ffmpeg -y -i " + shellEscape(root.mp4Path) +
                         " -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2'" +
-                        " -c:v libx264 -crf 18 -preset slow -tune animation" +
-                        " -pix_fmt yuv420p -movflags +faststart" +
+                        " -c:v libx264 -crf 15 -preset slow -tune animation" +
+                        " -pix_fmt yuv444p -movflags +faststart" +
                         (root.audioOutput || root.audioInput ? " -c:a aac -b:a 128k" : " -an") +
                         " " + shellEscape(root.gifPath) + " 2>/dev/null && " +
                         "rm -f " + shellEscape(root.mp4Path) + " && " +
@@ -201,9 +190,9 @@ Item {
                         "bash", "-c",
                         "mkdir -p " + shellEscape(framesDir) + " && " +
                         "ffmpeg -y -i " + shellEscape(root.mp4Path) +
-                        " -vf 'fps=20,scale=if(gt(iw\\,960)\\,960\\,iw):-2:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2'" +
+                        " -vf 'fps=24,scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=lanczos'" +
                         " " + shellEscape(framesDir) + "/frame%04d.png 2>/dev/null && " +
-                        "gifski --fps 20 --quality 95 -o " + shellEscape(root.gifPath) +
+                        "gifski --fps 24 --quality 97 -o " + shellEscape(root.gifPath) +
                         " " + shellEscape(framesDir) + "/frame*.png 2>/dev/null && " +
                         "rm -rf " + shellEscape(framesDir) + " " + shellEscape(root.mp4Path)
                     ]})
@@ -214,9 +203,7 @@ Item {
             }
         }
     }
-
     Process { id: stopProc }
-
     Process {
         id: gifConvertProc
         onExited: (code) => {
@@ -232,7 +219,6 @@ Item {
             }
         }
     }
-
     Process {
         id: saveProc
         property string savedPath: ""
@@ -246,7 +232,6 @@ Item {
             root.dismiss()
         }
     }
-
     Timer {
         id: elapsedTimer
         interval: 1000; repeat: true
@@ -256,13 +241,11 @@ Item {
                 root.stopRecording()
         }
     }
-
     Timer {
         id: previewTimer
         interval: 150; repeat: true
         onTriggered: _capturePreview()
     }
-
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -276,7 +259,6 @@ Item {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "noctalia-record"
-
             Item {
                 id: maskItem
                 readonly property real spaceBelow: parent.height - (root.uiY + root.regionH)
@@ -288,15 +270,13 @@ Item {
                 width: root._maskW; height: root._maskH
             }
             mask: Region { item: isPrimary ? maskItem : null }
-
             Rectangle {
                 visible: isPrimary && root.isRecording
                 x: root.uiX - 4; y: root.uiY - 4
                 width: root.regionW + 8; height: root.regionH + 8
                 color: "transparent"
-                border.color: "#FF4444"; border.width: 2; radius: 3; opacity: 0.85
+                border.color: "#FF4444"; border.width: Style.capsuleBorderWidth || 2; radius: Style.radiusS; opacity: 0.85
             }
-
             Item {
                 id: cardAnchor
                 visible: isPrimary
@@ -306,7 +286,6 @@ Item {
                 x: Math.max(8, Math.min(root.uiX + (root.regionW - cardW) / 2, parent.width - cardW - 8))
                 y: spaceBelow >= cardH + 10 ? root.uiY + root.regionH + 8 : root.uiY - cardH - 8
                 width: cardW; height: cardH
-
                 Rectangle {
                     id: cardRect
                     anchors.centerIn: parent
@@ -315,19 +294,16 @@ Item {
                     border.width: Style.capsuleBorderWidth || 1
                     implicitWidth:  cardCol.implicitWidth  + Style.marginL * 2
                     implicitHeight: cardCol.implicitHeight + Style.marginM * 2
-
                     Column {
                         id: cardCol
                         anchors.centerIn: parent
                         spacing: Style.marginM
-
                         Rectangle {
                             readonly property real previewW: Math.min(root.regionW, 300)
                             readonly property real previewH: previewW * (root.regionH / Math.max(root.regionW, 1))
                             width: previewW; height: previewH
                             radius: Style.radiusM; color: Color.mSurfaceVariant; clip: true
                             anchors.horizontalCenter: parent.horizontalCenter
-
                             Image {
                                 anchors.fill: parent
                                 visible: root.isRecording || root.isConverting
@@ -350,14 +326,13 @@ Item {
                                     ? "file:///tmp/screen-toolkit-record-preview.png?" + root._frameToken : ""
                                 fillMode: Image.PreserveAspectFit; smooth: true; cache: false
                             }
-
                             Rectangle {
                                 visible: root.isRecording
                                 anchors { top: parent.top; left: parent.left; margins: 6 }
                                 width: recBadge.implicitWidth + 10; height: 20; radius: 4
                                 color: Qt.rgba(0, 0, 0, 0.65)
                                 Row {
-                                    id: recBadge; anchors.centerIn: parent; spacing: 4
+                                    id: recBadge; anchors.centerIn: parent; spacing: Style.marginXS
                                     Rectangle {
                                         width: 7; height: 7; radius: 4; color: "#FF4444"
                                         anchors.verticalCenter: parent.verticalCenter
@@ -402,7 +377,7 @@ Item {
                                 width: readyBadge.implicitWidth + 10; height: 20; radius: 4
                                 color: Qt.rgba(0, 0, 0, 0.65)
                                 Row {
-                                    id: readyBadge; anchors.centerIn: parent; spacing: 4
+                                    id: readyBadge; anchors.centerIn: parent; spacing: Style.marginXS
                                     NIcon { icon: "circle-check"; color: Color.mPrimary; scale: 0.75 }
                                     NText {
                                         text: root.format === "mp4"
@@ -413,7 +388,6 @@ Item {
                                 }
                             }
                         }
-
                         Rectangle {
                             visible: root.isRecording
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -439,7 +413,6 @@ Item {
                                 onClicked: root.stopRecording()
                             }
                         }
-
                         Row {
                             visible: root.isDone
                             spacing: Style.marginS
