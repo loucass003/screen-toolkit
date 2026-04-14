@@ -5,7 +5,6 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Widgets
 import qs.Services.UI
-
 Item {
     id: root
     property var pluginApi: null
@@ -30,21 +29,20 @@ Item {
     property bool audioInput: false
     property bool includeCursor: false
     property string _recorderBin: "wl-screenrec"
-    signal dismissed()
-
+    property bool _previewBusy: false
+    property real _maskW: 0
+    property real _maskH: 0
     function _expandPath(p) {
         if (!p || p === "") return ""
         if (p.startsWith("~/"))
             return Quickshell.env("HOME") + "/" + p.substring(2)
         return p
     }
-
     function _recordOutputDir() {
         var custom = pluginApi?.pluginSettings?.videoPath ?? ""
         if (custom !== "") return _expandPath(custom.trim().replace(/\/$/, ""))
         return Quickshell.env("HOME") + "/Videos"
     }
-
     function _buildFilename(toolName, ext) {
         var fmt = pluginApi?.pluginSettings?.filenameFormat ?? ""
         if (fmt.trim() !== "") {
@@ -61,7 +59,6 @@ Item {
         }
         return toolName + "-" + Qt.formatDateTime(new Date(), "yyyy-MM-dd_HH-mm-ss") + ext
     }
-
     function startRecording(regionStr, fmt, audOut, audIn, cursor, uiOffsetX, uiOffsetY, screen) {
         if (root.isRecording || root.isConverting) return
         root.format        = (fmt === "mp4") ? "mp4" : "gif"
@@ -111,58 +108,44 @@ Item {
         }
         wfRecorderProc.exec({ command: ["bash", "-c", cmd] })
     }
-
     function stopRecording() {
         if (!root.isRecording) return
         elapsedTimer.stop()
         stopProc.exec({ command: ["bash", "-c", "pkill -INT " + root._recorderBin + " 2>/dev/null || true"] })
     }
-
     function dismiss() {
-        var toClipboard = root.pluginApi?.pluginSettings?.recordCopyToClipboard ?? false
-        if (root.gifPath !== "" && !toClipboard)
+        if (root.isRecording) root.stopRecording()
+        if (root.gifPath !== "")
             stopProc.exec({ command: ["bash", "-c", "rm -f " + shellEscape(root.gifPath)] })
         root.recordState = ""
         root.gifPath        = ""
         root._primaryScreen = null
         root.dismissed()
     }
-
     function shellEscape(str) {
         return "'" + str.replace(/'/g, "'\\''") + "'"
     }
-
-    function _handleDone() {
-        var skipConfirm = root.pluginApi?.pluginSettings?.recordSkipConfirmation ?? false
-        var toClipboard = root.pluginApi?.pluginSettings?.recordCopyToClipboard  ?? false
-        if (skipConfirm) {
-            _saveToFile()  // saveProc.onExited handles clipboard + dismiss
-        } else if (toClipboard) {
-            _copyPathToClipboard(root.gifPath)
-            ToastService.showNotice(root.pluginApi?.tr("record.copiedToClipboard"))
-            root.dismiss()
-        } else {
-            root.recordState = "done"
-        }
+    function formatTime(secs) {
+        var m = Math.floor(secs / 60)
+        var s = secs % 60
+        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
     }
-
-    function _copyPathToClipboard(path) {
-        var cmd = "printf 'file://%s\\r\\n' " + shellEscape(path) +
-                  " | wl-copy --type text/uri-list"
-        clipProc.exec({ command: ["bash", "-c", cmd] })
-    }
-
-    function _saveToFile() {
-        var ext  = root.format === "mp4" ? ".mp4" : ".gif"
-        var dir  = root._recordOutputDir()
-        var dest = dir + "/" + root._buildFilename("record", ext)
-        saveProc.savedPath = dest
-        saveProc.exec({ command: ["bash", "-c",
-            "mkdir -p " + shellEscape(dir) + " && " +
-            "cp " + shellEscape(root.gifPath) + " " + shellEscape(dest)
+    function _capturePreview() {
+        if (root._previewBusy || !root.isRecording) return
+        root._previewBusy = true
+        previewCaptureProc.exec({ command: [
+            "bash", "-c",
+            "grim -g " + shellEscape(root.region) +
+            " /tmp/screen-toolkit-record-preview.png 2>/dev/null"
         ]})
     }
-
+    Process {
+        id: previewCaptureProc
+        onExited: (code) => {
+            root._previewBusy = false
+            if (code === 0) root._frameToken++
+        }
+    }
     Process {
         id: wfRecorderProc
         onExited: (code) => {
@@ -177,8 +160,8 @@ Item {
                         "bash", "-c",
                         "ffmpeg -y -i " + shellEscape(root.mp4Path) +
                         " -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2'" +
-                        " -c:v libx264 -crf 18 -preset slow -tune animation" +
-                        " -pix_fmt yuv420p -movflags +faststart" +
+                        " -c:v libx264 -crf 15 -preset slow -tune animation" +
+                        " -pix_fmt yuv444p -movflags +faststart" +
                         (root.audioOutput || root.audioInput ? " -c:a aac -b:a 128k" : " -an") +
                         " " + shellEscape(root.gifPath) + " 2>/dev/null && " +
                         "rm -f " + shellEscape(root.mp4Path) + " && " +
@@ -192,9 +175,9 @@ Item {
                         "bash", "-c",
                         "mkdir -p " + shellEscape(framesDir) + " && " +
                         "ffmpeg -y -i " + shellEscape(root.mp4Path) +
-                        " -vf 'fps=20,scale=if(gt(iw\\,960)\\,960\\,iw):-2:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2'" +
+                        " -vf 'fps=24,scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=lanczos'" +
                         " " + shellEscape(framesDir) + "/frame%04d.png 2>/dev/null && " +
-                        "gifski --fps 20 --quality 95 -o " + shellEscape(root.gifPath) +
+                        "gifski --fps 24 --quality 97 -o " + shellEscape(root.gifPath) +
                         " " + shellEscape(framesDir) + "/frame*.png 2>/dev/null && " +
                         "rm -rf " + shellEscape(framesDir) + " " + shellEscape(root.mp4Path)
                     ]})
@@ -205,9 +188,7 @@ Item {
             }
         }
     }
-
     Process { id: stopProc }
-
     Process {
         id: gifConvertProc
         onExited: (code) => {
@@ -221,7 +202,6 @@ Item {
             }
         }
     }
-
     Process {
         id: saveProc
         property string savedPath: ""
@@ -241,9 +221,6 @@ Item {
             root.dismiss()
         }
     }
-
-    Process { id: clipProc }
-
     Timer {
         id: elapsedTimer
         interval: 1000; repeat: true
@@ -253,7 +230,11 @@ Item {
                 root.stopRecording()
         }
     }
-
+    Timer {
+        id: previewTimer
+        interval: 150; repeat: true
+        onTriggered: _capturePreview()
+    }
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -268,43 +249,209 @@ Item {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "noctalia-record"
-            // Border around region
+            Item {
+                id: maskItem
+                readonly property real spaceBelow: parent.height - (root.uiY + root.regionH)
+                x: Math.max(8, Math.min(root.uiX + (root.regionW - root._maskW) / 2,
+                                        parent.width - root._maskW - 8))
+                y: spaceBelow >= root._maskH + 10
+                   ? root.uiY + root.regionH + 8
+                   : root.uiY - root._maskH - 8
+                width: root._maskW; height: root._maskH
+            }
+            mask: Region { item: isPrimary ? maskItem : null }
             Rectangle {
                 visible: isPrimary
                 x: root.uiX - 4; y: root.uiY - 4
                 width: root.regionW + 8; height: root.regionH + 8
                 color: "transparent"
-                border.color: Color.mError || "#f44336"; border.width: 2; radius: 3; opacity: 0.85
+                border.color: "#FF4444"; border.width: Style.capsuleBorderWidth || 2; radius: Style.radiusS; opacity: 0.85
             }
-
-            // Stop button — positioned via child Item so parent.height/width resolves correctly
             Item {
                 id: stopBtnAnchor
                 visible: isPrimary
                 readonly property real btnW: 110
                 readonly property real btnH: 36
                 readonly property real spaceBelow: parent.height - (root.uiY + root.regionH)
-                x: Math.max(8, Math.min(root.uiX + (root.regionW - btnW) / 2, parent.width - btnW - 8))
-                y: spaceBelow >= btnH + 10 ? root.uiY + root.regionH + 8 : root.uiY - btnH - 8
-                width: btnW; height: btnH
-
+                x: Math.max(8, Math.min(root.uiX + (root.regionW - cardW) / 2, parent.width - cardW - 8))
+                y: spaceBelow >= cardH + 10 ? root.uiY + root.regionH + 8 : root.uiY - cardH - 8
+                width: cardW; height: cardH
                 Rectangle {
-                    anchors.fill: parent
-                    radius: Style.radiusL
-                    color: stopMA.containsMouse ? Color.mError || "#f44336" : Color.mSurface
-                    border.color: Color.mError || "#f44336"; border.width: 2
-                    Row {
-                        anchors.centerIn: parent; spacing: Style.marginS
+                    id: cardRect
+                    anchors.centerIn: parent
+                    radius: Style.radiusL; color: Color.mSurface
+                    border.color: Style.capsuleBorderColor || "transparent"
+                    border.width: Style.capsuleBorderWidth || 1
+                    implicitWidth:  cardCol.implicitWidth  + Style.marginL * 2
+                    implicitHeight: cardCol.implicitHeight + Style.marginM * 2
+                    Column {
+                        id: cardCol
+                        anchors.centerIn: parent
+                        spacing: Style.marginM
                         Rectangle {
-                            width: 10; height: 10; radius: 2
-                            color: stopMA.containsMouse ? "white" : Color.mError || "#f44336"
-                            anchors.verticalCenter: parent.verticalCenter
+                            readonly property real previewW: Math.min(root.regionW, 300)
+                            readonly property real previewH: previewW * (root.regionH / Math.max(root.regionW, 1))
+                            width: previewW; height: previewH
+                            radius: Style.radiusM; color: Color.mSurfaceVariant; clip: true
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            Image {
+                                anchors.fill: parent
+                                visible: root.isRecording || root.isConverting
+                                source: root._frameToken > 0
+                                    ? "file:///tmp/screen-toolkit-record-preview.png?" + root._frameToken : ""
+                                fillMode: Image.PreserveAspectFit; smooth: true; cache: false
+                            }
+                            AnimatedImage {
+                                anchors.fill: parent
+                                visible: root.isDone && root.format === "gif"
+                                source: root.isDone && root.format === "gif" && root.gifPath !== ""
+                                    ? "file://" + root.gifPath : ""
+                                fillMode: Image.PreserveAspectFit; smooth: true; cache: false
+                                playing: root.isDone
+                            }
+                            Image {
+                                anchors.fill: parent
+                                visible: root.isDone && root.format === "mp4"
+                                source: root.isDone && root.format === "mp4"
+                                    ? "file:///tmp/screen-toolkit-record-preview.png?" + root._frameToken : ""
+                                fillMode: Image.PreserveAspectFit; smooth: true; cache: false
+                            }
+                            Rectangle {
+                                visible: root.isRecording
+                                anchors { top: parent.top; left: parent.left; margins: 6 }
+                                width: recBadge.implicitWidth + 10; height: 20; radius: 4
+                                color: Qt.rgba(0, 0, 0, 0.65)
+                                Row {
+                                    id: recBadge; anchors.centerIn: parent; spacing: Style.marginXS
+                                    Rectangle {
+                                        width: 7; height: 7; radius: 4; color: "#FF4444"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        SequentialAnimation on opacity {
+                                            running: root.isRecording; loops: Animation.Infinite
+                                            NumberAnimation { to: 0.15; duration: 600 }
+                                            NumberAnimation { to: 1.0;  duration: 600 }
+                                        }
+                                    }
+                                    NText {
+                                        text: "REC " + root.formatTime(root._elapsed)
+                                        color: "white"; font.weight: Font.Bold; pointSize: Style.fontSizeXS
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                visible: root.isConverting; anchors.fill: parent; radius: Style.radiusM
+                                color: Qt.rgba(0, 0, 0, 0.55)
+                                Column {
+                                    anchors.centerIn: parent; spacing: Style.marginS
+                                    NIcon {
+                                        icon: "loader"; color: "white"
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        RotationAnimation on rotation {
+                                            running: root.isConverting
+                                            from: 0; to: 360; duration: 1000; loops: Animation.Infinite
+                                        }
+                                    }
+                                    NText {
+                                        text: root.format === "mp4"
+                                            ? root.pluginApi?.tr("record.savingMp4")
+                                            : root.pluginApi?.tr("record.convertingGif")
+                                        color: "white"; pointSize: Style.fontSizeXS
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                visible: root.isDone
+                                anchors { top: parent.top; left: parent.left; margins: 6 }
+                                width: readyBadge.implicitWidth + 10; height: 20; radius: 4
+                                color: Qt.rgba(0, 0, 0, 0.65)
+                                Row {
+                                    id: readyBadge; anchors.centerIn: parent; spacing: Style.marginXS
+                                    NIcon { icon: "circle-check"; color: Color.mPrimary; scale: 0.75 }
+                                    NText {
+                                        text: root.format === "mp4"
+                                            ? root.pluginApi?.tr("record.mp4Ready")
+                                            : root.pluginApi?.tr("record.gifReady")
+                                        color: "white"; font.weight: Font.Bold; pointSize: Style.fontSizeXS
+                                    }
+                                }
+                            }
                         }
-                        NText {
-                            text: root.pluginApi?.tr("record.stop") ?? "Stop"
-                            color: stopMA.containsMouse ? "white" : Color.mOnSurface
-                            font.weight: Font.Bold; pointSize: Style.fontSizeS
-                            anchors.verticalCenter: parent.verticalCenter
+                        Rectangle {
+                            visible: root.isRecording
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            height: 34; radius: Style.radiusM
+                            width: stopRow.implicitWidth + Style.marginL * 2
+                            color: stopBtn.containsMouse ? Color.mError || "#f44336" : Color.mSurfaceVariant
+                            Row {
+                                id: stopRow; anchors.centerIn: parent; spacing: Style.marginS
+                                Rectangle {
+                                    width: 10; height: 10; radius: 2
+                                    color: stopBtn.containsMouse ? "white" : (Color.mError || "#f44336")
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                NText {
+                                    text: root.pluginApi?.tr("record.stop")
+                                    color: stopBtn.containsMouse ? "white" : Color.mOnSurface
+                                    font.weight: Font.Bold; pointSize: Style.fontSizeS
+                                }
+                            }
+                            MouseArea {
+                                id: stopBtn; anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.stopRecording()
+                            }
+                        }
+                        Row {
+                            visible: root.isDone
+                            spacing: Style.marginS
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            Rectangle {
+                                height: 34; radius: Style.radiusM
+                                width: saveRow.implicitWidth + Style.marginL * 2
+                                color: saveBtn.containsMouse ? Color.mPrimary : Color.mSurfaceVariant
+                                Row {
+                                    id: saveRow; anchors.centerIn: parent; spacing: Style.marginS
+                                    NIcon { icon: "device-floppy"; color: saveBtn.containsMouse ? Color.mOnPrimary : Color.mOnSurface }
+                                    NText {
+                                        text: root.format === "mp4"
+                                            ? root.pluginApi?.tr("record.saveMp4")
+                                            : root.pluginApi?.tr("record.saveGif")
+                                        color: saveBtn.containsMouse ? Color.mOnPrimary : Color.mOnSurface
+                                        font.weight: Font.Bold; pointSize: Style.fontSizeS
+                                    }
+                                }
+                                MouseArea {
+                                    id: saveBtn; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        var ext  = root.format === "mp4" ? ".mp4" : ".gif"
+                                        var dir  = root._recordOutputDir()
+                                        var dest = dir + "/" + root._buildFilename("record", ext)
+                                        saveProc.savedPath = dest
+                                        saveProc.exec({ command: [
+                                            "bash", "-c",
+                                            "mkdir -p " + shellEscape(dir) + " && " +
+                                            "cp " + shellEscape(root.gifPath) + " " + shellEscape(dest)
+                                        ]})
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                width: 34; height: 34; radius: Style.radiusM
+                                color: discardBtn.containsMouse ? Color.mErrorContainer || "#ffcdd2" : Color.mSurface
+                                border.color: discardBtn.containsMouse ? Color.mError || "#f44336" : (Style.capsuleBorderColor || "transparent")
+                                border.width: Style.capsuleBorderWidth || 1
+                                NIcon { anchors.centerIn: parent; icon: "trash"; color: discardBtn.containsMouse ? Color.mError || "#f44336" : Color.mOnSurfaceVariant }
+                                MouseArea {
+                                    id: discardBtn; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.dismiss()
+                                    onEntered: TooltipService.show(discardBtn, root.pluginApi?.tr("record.discard"))
+                                    onExited:  TooltipService.hide()
+                                }
+                            }
                         }
                     }
                     MouseArea {

@@ -1,53 +1,59 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
+import qs.Widgets
 import qs.Services.UI
-
+import qs.Services.Compositor
 Item {
     id: root
-
-    property var    pluginApi:             null
-    property bool   isRunning:             false
-    property string activeTool:            ""
-    property string pendingLangStr:        "eng"
-    property string pendingRecordFormat:   "gif"
-    property bool   pendingRecordAudioOut: false
-    property bool   pendingRecordAudioIn:  false
-    property bool   pendingRecordCursor:   false
-    property string pendingTool:           ""
-
-    // runtime state — exposed via mainInstance, never touches pluginSettings/disk
-    property var    installedLangs:   []
-    property bool   transAvailable:   false
-    property string detectedRecorder: ""
-    readonly property string detectedCompositor: isHyprland ? "hyprland" : isNiri ? "niri" : "other"
-    property string resultHex:        ""
-    property string resultRgb:        ""
-    property string resultHsv:        ""
-    property string resultHsl:        ""
-    property string colorCapturePath: ""
-    property int    colorCacheBust:   0
-    property string ocrResult:        ""
-    property string ocrCapturePath:   ""
-    property string qrResult:         ""
-    property string qrCapturePath:    ""
-    property string translateResult:  ""
-    property var    paletteColors:    []
-    readonly property string recordState:  recordOverlay?.recordState  ?? ""
-    readonly property string recordFormat: recordOverlay?.format       ?? "gif"
-    readonly property string recordPath:   recordOverlay?.gifPath      ?? ""
-
+    property var pluginApi: null
+    property bool isRecording: false
+    property bool isConverting: false
+    property bool isDone: false
+    property int regionX: 0
+    property int regionY: 0
+    property int regionW: 400
+    property int regionH: 300
+    property int uiX: 0
+    property int uiY: 0
+    property var _primaryScreen: null
+    property int _elapsed: 0
+    property int _frameToken: 0
+    property string format: "gif"
+    property bool audioOutput: false
+    property bool audioInput: false
+    property bool includeCursor: false
+    property string _recorderBin: "wl-screenrec"
+    property bool _previewBusy: false
+    property real _maskW: 0
+    property real _maskH: 0
+    property bool isRunning: false
+    property string activeTool: ""
+    property string pendingLangStr: "eng"
+    property string pendingRecordFormat: "gif"
+    property bool pendingRecordAudioOut: false
+    property bool pendingRecordAudioIn: false
+    property bool pendingRecordCursor: false
+    property string pendingTool: ""
+    onIsRunningChanged:  _syncState()
+    onActiveToolChanged: _syncState()
+    function _syncState() {
+        if (!pluginApi) return
+        pluginApi.pluginSettings.stateIsRunning     = root.isRunning
+        pluginApi.pluginSettings.stateActiveTool    = root.activeTool
+        pluginApi.pluginSettings.stateMirrorVisible = mirrorOverlay?.isVisible ?? false
+        pluginApi.saveSettings()
+    }
     readonly property string selectedOcrLang: pluginApi?.pluginSettings?.selectedOcrLang || "eng"
-    readonly property bool   isNiri:          (Quickshell.env("NIRI_SOCKET")                  || "") !== ""
-    readonly property bool   isHyprland:      (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")  || "") !== ""
-
+    readonly property bool   isNiri:          CompositorService.isNiri
+    readonly property bool   isHyprland:      CompositorService.isHyprland
     function expandPath(p) {
         if (!p || p.trim() === "") return ""
         if (p.startsWith("~/")) return Quickshell.env("HOME") + "/" + p.substring(2)
         return p
     }
-
     function formatFilename(stem) {
         if (!stem || stem.trim() === "") return ""
         var now = new Date()
@@ -62,19 +68,16 @@ Item {
             .trim()
         return s
     }
-
     function screenshotDir() {
         var custom = pluginApi?.pluginSettings?.screenshotPath ?? ""
         if (custom.trim() !== "") return expandPath(custom.trim())
         return Quickshell.env("HOME") + "/Pictures/Screenshots"
     }
-
     function videoDir() {
         var custom = pluginApi?.pluginSettings?.videoPath ?? ""
         if (custom.trim() !== "") return expandPath(custom.trim())
         return Quickshell.env("HOME") + "/Videos"
     }
-
     function buildFilename(prefix) {
         var fmt = pluginApi?.pluginSettings?.filenameFormat ?? ""
         if (fmt.trim() !== "") {
@@ -87,7 +90,6 @@ Item {
             + "_"
             + Qt.formatDateTime(now, "HH-mm-ss")
     }
-
     property int _regionX:        0
     property int _regionY:        0
     property int _regionW:        0
@@ -95,7 +97,6 @@ Item {
     property var _regionScreen:   null
     property bool _capsDetected:  false
     property var _detectedLangs:  []
-
     Component.onCompleted: {
         root.isRunning  = false
         root.activeTool = ""
@@ -104,13 +105,20 @@ Item {
             _capsDetected = true
         }
     }
-
-    onPluginApiChanged: { }
-
+    onPluginApiChanged: {
+        if (pluginApi) {
+            pluginApi.pluginSettings.stateIsRunning     = false
+            pluginApi.pluginSettings.stateActiveTool    = ""
+            pluginApi.pluginSettings.detectedCompositor =
+                root.isHyprland ? "hyprland" :
+                root.isNiri     ? "niri"     : "other"
+            pluginApi.saveSettings()
+        }
+    }
     function _grimRegionCmd(outFile) {
         if (!root._regionScreen)
             Logger.w("ScreenToolkit", "_grimRegionCmd: _regionScreen is null")
-        var scale = root._regionScreen?.devicePixelRatio ?? 1.0
+        var scale = Math.max(0.1, root._regionScreen?.devicePixelRatio ?? 1.0)
         var sx    = root._regionScreen?.x ?? 0
         var sy    = root._regionScreen?.y ?? 0
         var gx = sx + Math.round(root._regionX / scale)
@@ -119,14 +127,12 @@ Item {
         var gh = Math.round(root._regionH / scale)
         return "grim -g \"" + gx + "," + gy + " " + gw + "x" + gh + "\" " + outFile + " 2>/dev/null"
     }
-
     function _runSlurpTool(tool) {
         if (root.isRunning) return
         root.pendingTool = tool
         root.isRunning   = true
         closeThenLaunch(launchRegionSelector)
     }
-
     Process {
         id: detectLangsProc
         stdout: StdioCollector {}
@@ -143,7 +149,6 @@ Item {
                 root.installedLangs = root._detectedLangs.slice()
         }
     }
-
     Process {
         id: detectTransProc
         stdout: StdioCollector {}
@@ -152,7 +157,6 @@ Item {
             root.transAvailable = path !== "" && path.startsWith("/")
         }
     }
-
     Process {
         id: detectRecorderProc
         stdout: StdioCollector {}
@@ -163,19 +167,16 @@ Item {
                 path.endsWith("wf-recorder")  ? "wf-recorder"  : ""
         }
     }
-
     Process {
         id: colorPickerProc
         stdout: StdioCollector {}
         onExited: (code) => {
             root.isRunning = false
-
             if (code !== 0 || colorPickerProc.stdout.text.trim() === "") {
                 root.activeTool = ""
                 ToastService.showError(pluginApi.tr("messages.picker-cancelled"))
                 return
             }
-
             var output = colorPickerProc.stdout.text.trim()
             var parts  = output.split(/\s+/)
             if (parts.length < 3) {
@@ -183,41 +184,28 @@ Item {
                 ToastService.showError(pluginApi.tr("messages.picker-cancelled"))
                 return
             }
-
             var r = Math.max(0, Math.min(255, parseInt(parts[0])))
             var g = Math.max(0, Math.min(255, parseInt(parts[1])))
             var b = Math.max(0, Math.min(255, parseInt(parts[2])))
-
             var hex = "#" + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1).toUpperCase()
             var rgb = "rgb(" + r + ", " + g + ", " + b + ")"
-
             var rn  = r / 255, gn = g / 255, bn = b / 255
             var max = Math.max(rn, gn, bn)
             var min = Math.min(rn, gn, bn)
             var d   = max - min
-
             var h = 0
             var s = max === 0 ? 0 : d / max
             var v = max
-
             if (d !== 0) {
                 if      (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0)) % 6
                 else if (max === gn) h = (bn - rn) / d + 2
                 else                 h = (rn - gn) / d + 4
                 h = Math.round(h * 60)
             }
-
             var hsv = "hsv(" + h + ", " + Math.round(s * 100) + "%, " + Math.round(v * 100) + "%)"
             var l   = (max + min) / 2
             var sl  = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
             var hsl = "hsl(" + h + ", " + Math.round(sl * 100) + "%, " + Math.round(l * 100) + "%)"
-
-            root.resultHex        = hex
-            root.resultRgb        = rgb
-            root.resultHsv        = hsv
-            root.resultHsl        = hsl
-            root.colorCapturePath = "/tmp/screen-toolkit-colorpicker.png"
-            root.colorCacheBust   = Date.now()
             if (pluginApi) {
                 var history = pluginApi.pluginSettings.colorHistory || []
                 history = [hex].concat(history.filter(c => c !== hex)).slice(0, 8)
@@ -225,14 +213,12 @@ Item {
                 pluginApi.saveSettings()
                 root.copyToClipboard(hex)
             }
-
             root.activeTool = "colorpicker"
             if (pluginApi) {
                 pluginApi.withCurrentScreen(screen => pluginApi.openPanel(screen))
             }
         }
     }
-
     Process {
         id: ocrProc
         stdout: StdioCollector {}
@@ -253,7 +239,6 @@ Item {
             }
         }
     }
-
     Process {
         id: qrProc
         stdout: StdioCollector {}
@@ -273,7 +258,6 @@ Item {
             }
         }
     }
-
     Process {
         id: lensProc
         onExited: (code) => {
@@ -282,7 +266,6 @@ Item {
             if (code !== 0) ToastService.showError(pluginApi.tr("messages.lens-failed"))
         }
     }
-
     Process {
         id: annotateProc
         onExited: (code) => {
@@ -300,13 +283,11 @@ Item {
             }
         }
     }
-
     QtObject {
         id: annotateRegionState
         property string _pendingRegion: ""
         property var    _pendingScreen: null
     }
-
     Process {
         id: annotateWinProc
         stdout: StdioCollector {}
@@ -333,7 +314,6 @@ Item {
             annotateOverlay.parseAndShow(regionStr, "/tmp/screen-toolkit-annotate.png", screen)
         }
     }
-
     Process {
         id: pinGrimProc
         stdout: StdioCollector {}
@@ -355,7 +335,6 @@ Item {
             }
         }
     }
-
     Process {
         id: pinFileProc
         stdout: StdioCollector {}
@@ -367,7 +346,6 @@ Item {
             }
         }
     }
-
     Process {
         id: paletteProc
         stdout: StdioCollector {}
@@ -394,7 +372,6 @@ Item {
             }
         }
     }
-
     Process {
         id: translateProc
         property bool isTranslating: false
@@ -406,9 +383,7 @@ Item {
                 ? result : (pluginApi?.tr("messages.translate-failed") ?? "Translation failed")
         }
     }
-
     Process { id: clipProc }
-
     RegionSelector {
         id: regionSelector
         onRegionSelected: (x, y, w, h, screen) => {
@@ -422,36 +397,14 @@ Item {
             root.activeTool = ""
         }
     }
-
     Annotate { id: annotateOverlay; mainInstance: root }
     Measure  { id: measureOverlay;  mainInstance: root }
     Pin      { id: pinOverlay;      pluginApi: root.pluginApi }
     Record   { id: recordOverlay;   pluginApi: root.pluginApi }
     Mirror   { id: mirrorOverlay;   pluginApi: root.pluginApi }
-
-    Connections {
-        target: recordOverlay
-
-        function onRecordStateChanged() {
-            if (!pluginApi) return
-            var s = recordOverlay.recordState
-            var skipConfirm = pluginApi.pluginSettings?.recordSkipConfirmation ?? false
-            var toClipboard = pluginApi.pluginSettings?.recordCopyToClipboard  ?? false
-            if (s === "converting" && !skipConfirm && !toClipboard) {
-                var screen = recordOverlay._primaryScreen
-                if (screen) pluginApi.openPanel(screen)
-                else pluginApi.withCurrentScreen(sc => pluginApi.openPanel(sc))
-            }
-        }
-
-        function onDismissed() {
-            if (root.activeTool === "record") root.activeTool = ""
-        }
-    }
-
     readonly property bool mirrorVisible: mirrorOverlay.isVisible
-
-Timer {
+    onMirrorVisibleChanged: _syncState()
+    Timer {
         id: launchColorPicker
         interval: 220; repeat: false
         onTriggered: {
@@ -473,7 +426,6 @@ Timer {
             var file = "/tmp/screen-toolkit-ocr.png"
             var tmp  = "/tmp/screen-toolkit-ocr-work-" + Date.now() + ".pnm"
             var lang = root.pendingLangStr || "eng"
-
             var scale    = root._regionScreen?.devicePixelRatio ?? 1.0
             var physW    = Math.round(root._regionW / scale)
             var physH    = Math.round(root._regionH / scale)
@@ -481,7 +433,6 @@ Timer {
             var upscale  = physH < 30 ? "-resize 400%" : (area < 50000 || physW < 200) ? "-resize 200%" : ""
             var aspectRatio = physW / Math.max(physH, 1)
             var psm      = aspectRatio > 8 ? "7" : area < 60000 ? "6" : physH < 40 ? "7" : "3"
-
             var cmd =
                 _grimRegionCmd(file) + " && " +
                 "magick " + shellEscape(file) + " " + upscale + " " +
@@ -498,11 +449,9 @@ Timer {
                 "    TEXT=\"$TEXT2\"; fi; " +
                 "fi && " +
                 "printf '%s' \"$TEXT\"; rm -f " + shellEscape(tmp)
-
             ocrProc.exec({ command: ["bash", "-c", cmd] })
         }
     }
-
     Timer {
         id: launchQr
         interval: 50; repeat: false
@@ -513,25 +462,23 @@ Timer {
             ]})
         }
     }
-
     Timer {
-    id: launchLens
-    interval: 50; repeat: false
-    onTriggered: {
-        var file = "/tmp/screen-toolkit-lens.png"
-        var cmd =
-            _grimRegionCmd(file) + " || { notify-send -u critical 'Screen Toolkit' 'Capture failed'; exit 1; }; " +
-            "notify-send 'Screen Toolkit' 'Uploading to Lens...' 2>/dev/null; " +
-            "RESP=$(curl -sS --connect-timeout 5 --max-time 30 -F 'files[]=@" + file + "' 'https://uguu.se/upload' 2>/dev/null); " +
-            "URL=$(echo \"$RESP\" | jq -r '.files[0].url // empty' 2>/dev/null); " +
-            "rm -f " + file + "; " +
-            "if [ -n \"$URL\" ] && [ \"$URL\" != \"null\" ]; then " +
-            "  xdg-open \"https://lens.google.com/uploadbyurl?url=$URL\" >/dev/null 2>&1; exit 0; " +
-            "else notify-send -u critical 'Screen Toolkit' 'Upload failed or timed out'; exit 1; fi"
-        lensProc.exec({ command: ["bash", "-c", cmd] })
+        id: launchLens
+        interval: 50; repeat: false
+        onTriggered: {
+            var file = "/tmp/screen-toolkit-lens.png"
+            var cmd =
+                _grimRegionCmd(file) + " || { notify-send -u critical 'Screen Toolkit' 'Capture failed'; exit 1; }; " +
+                "notify-send 'Screen Toolkit' 'Uploading to Lens...' 2>/dev/null; " +
+                "RESP=$(curl -sS --connect-timeout 5 --max-time 30 -F 'files[]=@" + file + "' 'https://uguu.se/upload' 2>/dev/null); " +
+                "URL=$(echo \"$RESP\" | jq -r '.files[0].url // empty' 2>/dev/null); " +
+                "rm -f " + file + "; " +
+                "if [ -n \"$URL\" ] && [ \"$URL\" != \"null\" ]; then " +
+                "  xdg-open \"https://lens.google.com/uploadbyurl?url=$URL\" >/dev/null 2>&1; exit 0; " +
+                "else notify-send -u critical 'Screen Toolkit' 'Upload failed or timed out'; exit 1; fi"
+            lensProc.exec({ command: ["bash", "-c", cmd] })
+        }
     }
-}
-
     Timer {
         id: launchAnnotate
         interval: 50; repeat: false
@@ -546,7 +493,6 @@ Timer {
             annotateProc.exec({ command: ["bash", "-c", _grimRegionCmd("/tmp/screen-toolkit-annotate.png")] })
         }
     }
-
     Timer {
         id: launchAnnotateActiveWindow
         interval: 360; repeat: false
@@ -561,7 +507,6 @@ Timer {
             annotateWinProc.exec({ command: ["bash", "-c", cmd] })
         }
     }
-
     Timer {
         id: launchAnnotateFullscreen
         interval: 380; repeat: false
@@ -574,12 +519,11 @@ Timer {
             annotateProc.exec({ command: ["bash", "-c", cmd] })
         }
     }
-
     Timer {
         id: launchPin
         interval: 50; repeat: false
         onTriggered: {
-            var scale = root._regionScreen?.devicePixelRatio ?? 1.0
+            var scale = Math.max(0.1, root._regionScreen?.devicePixelRatio ?? 1.0)
             var sx    = root._regionScreen?.x ?? 0
             var sy    = root._regionScreen?.y ?? 0
             var gx = sx + Math.round(root._regionX / scale)
@@ -592,7 +536,6 @@ Timer {
             pinGrimProc.exec({ command: ["bash", "-c", cmd] })
         }
     }
-
     Timer {
         id: launchPinFile
         interval: 200; repeat: false
@@ -606,7 +549,6 @@ Timer {
             ]})
         }
     }
-
     Timer {
         id: launchPalette
         interval: 50; repeat: false
@@ -619,7 +561,6 @@ Timer {
             paletteProc.exec({ command: ["bash", "-c", cmd] })
         }
     }
-
     Timer {
         id: launchRecord
         interval: 50; repeat: false
@@ -643,14 +584,12 @@ Timer {
             )
         }
     }
-
     Timer {
         id: launchRegionSelector
         interval: 220; repeat: false
         property var targetScreen: null
         onTriggered: regionSelector.show(targetScreen)
     }
-
     function _dispatchPendingTool() {
         switch (root.pendingTool) {
             case "ocr":      launchOcr.start();      break
@@ -665,14 +604,11 @@ Timer {
                 root.isRunning = false
         }
     }
-
     function copyToClipboard(text) {
         if (!text || text === "") return
         clipProc.exec({ command: ["bash", "-c", "printf '%s' " + shellEscape(text) + " | wl-copy 2>/dev/null"] })
     }
-
     function shellEscape(str) { return "'" + str.replace(/'/g, "'\\''") + "'" }
-
     function closeThenLaunch(timer) {
         if (!pluginApi) { timer.start(); return }
         pluginApi.withCurrentScreen(screen => {
@@ -681,14 +617,12 @@ Timer {
             timer.start()
         })
     }
-
     function runTranslate(text, targetLang) {
         if (!text || text === "" || translateProc.isTranslating) return
         translateProc.isTranslating = true
         root.translateResult = ""
         translateProc.exec({ command: ["bash", "-c", "trans -brief -to " + targetLang + " " + shellEscape(text)] })
     }
-
     function runColorPicker() {
         if (root.isRunning) return
         root.isRunning        = true
@@ -701,17 +635,14 @@ Timer {
         root.colorCacheBust   = 0
         closeThenLaunch(launchColorPicker)
     }
-
     function runOcr(langStr) {
         if (root.isRunning) return
         root.pendingLangStr = (langStr && langStr !== "") ? langStr : "eng"
         _runSlurpTool("ocr")
     }
-
     function runQr()       { _runSlurpTool("qr")      }
     function runLens()     { _runSlurpTool("lens")     }
     function runAnnotate() { _runSlurpTool("annotate") }
-
     function _findScreenForPoint(gx, gy) {
         var screens = Quickshell.screens
         for (var i = 0; i < screens.length; i++) {
@@ -721,7 +652,6 @@ Timer {
         }
         return root._regionScreen ?? (screens.length > 0 ? screens[0] : null)
     }
-
     function runAnnotateFullscreen() {
         if (root.isRunning) return
         root.isRunning = true
@@ -738,7 +668,6 @@ Timer {
             launchAnnotateFullscreen.start()
         })
     }
-
     function runAnnotateActiveWindow() {
         if (root.isRunning) return
         root.isRunning = true
@@ -750,15 +679,12 @@ Timer {
             launchAnnotateActiveWindow.start()
         })
     }
-
     function runPalette() {
         if (root.isRunning) return
         root.paletteColors = []
         _runSlurpTool("palette")
     }
-
     function runPin() { _runSlurpTool("pin") }
-
     function runPinFromFile() {
         if (!pluginApi) { launchPinFile.start(); return }
         pluginApi.withCurrentScreen(screen => {
@@ -766,29 +692,12 @@ Timer {
             launchPinFile.start()
         })
     }
-
     function runMeasure() {
         if (root.isRunning) return
         root.activeTool = "measure"
         if (pluginApi) pluginApi.withCurrentScreen(screen => pluginApi.closePanel(screen))
         measureOverlay.show()
     }
-
-    function runRecordStop() {
-        recordOverlay.stopRecording()
-    }
-
-    function runRecordSave() {
-        recordOverlay._saveToFile()
-    }
-
-    function runRecordDiscard() {
-        var screen = recordOverlay._primaryScreen
-        recordOverlay.dismiss()
-        if (screen) pluginApi.closePanel(screen)
-        else pluginApi.withCurrentScreen(sc => pluginApi.closePanel(sc))
-    }
-
     function runRecord(format, audioOut, audioIn, cursor) {
         if (root.isRunning || recordOverlay.isRecording || recordOverlay.isConverting) return
         root.pendingRecordFormat   = format   || "gif"
@@ -797,19 +706,16 @@ Timer {
         root.pendingRecordCursor   = cursor   === true
         _runSlurpTool("record")
     }
-
     function runMirror() {
         if (pluginApi) pluginApi.withCurrentScreen(screen => mirrorOverlay.toggle(screen))
         else mirrorOverlay.toggle()
     }
-
     function detectCapabilities() {
         root._detectedLangs = []
         detectLangsProc.exec({ command:     ["bash", "-c", "tesseract --list-langs 2>/dev/null | tail -n +2"] })
         detectTransProc.exec({ command:     ["bash", "-c", "which trans 2>/dev/null"] })
         detectRecorderProc.exec({ command:  ["bash", "-c", "which wl-screenrec 2>/dev/null || which wf-recorder 2>/dev/null"] })
     }
-
     function annotateScreenshotCmd(overlayTmpFile) {
         var dir   = root.screenshotDir()
         var fname = root.buildFilename("annotate") + ".png"
@@ -820,7 +726,6 @@ Timer {
                "rm -f " + shellEscape(overlayTmpFile) + " && " +
                "echo " + shellEscape(dest)
     }
-
     function annotateScreenshotZoomCmd(imgPath) {
         var dir   = root.screenshotDir()
         var fname = root.buildFilename("annotate") + ".png"
@@ -829,10 +734,8 @@ Timer {
                "cp " + shellEscape(imgPath) + " " + shellEscape(dest) + " && " +
                "echo " + shellEscape(dest)
     }
-
     IpcHandler {
         target: "plugin:screen-toolkit"
-
         function toggle()             { if (pluginApi) pluginApi.withCurrentScreen(screen => pluginApi.togglePanel(screen)) }
         function mirror()             { root.runMirror() }
         function measure()            { root.runMeasure() }
